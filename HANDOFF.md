@@ -1,6 +1,6 @@
 # Sofi · agente de IA da Spasso Kids & Teens — HANDOFF
 
-Estado em 2026-11-20: **construída e testada sem número** (TRANSPORT=dry: gera a resposta, grava no Kommo e no diário, não envia nada).
+Estado em 2026-11-20: **em teste pelo número da Kuma** (TRANSPORT=uazapi com a instância do Ítalo SDR). O SDR repassa para `/api/uazapi` só os números de `SOFI_TESTE_NUMEROS` (no SDR); a Sofi confere `TESTE_NUMEROS` na entrada, no atendimento e no envio (vazio = ninguém, `todos` = todos). Para desligar o teste: apagar `SOFI_TESTE_NUMEROS`/`SOFI_URL` no SDR e redeploy; na Sofi, `TRANSPORT=dry`.
 
 ## Onde está
 - Produção: https://sofi-agente-ia-spasso-kids.vercel.app (Vercel, time kumatech4-8384s-projects, projeto `sofi-agente-ia-spasso-kids`, deploy pela CLI).
