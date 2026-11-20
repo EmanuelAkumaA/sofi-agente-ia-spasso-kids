@@ -1,0 +1,9 @@
+# segredos
+.env*
+!.env.local.example
+.vercel
+
+node_modules/
+dist/
+*.log
+.preview/

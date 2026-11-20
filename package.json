@@ -1,0 +1,22 @@
+{
+  "name": "sofi-agente-ia-spasso-kids",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sofi — atendimento de IA do Buffet Spasso Kids & Teens (OpenAI Responses + Kommo v4 + uazapi)",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "evals": "tsx scripts/evals.ts",
+    "test:unit": "tsx scripts/test-unit.ts"
+  },
+  "dependencies": {
+    "openai": "^4.104.0",
+    "@upstash/redis": "^1.34.3",
+    "@vercel/functions": "^1.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vercel/node": "^5.0.2",
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.0"
+  }
+}

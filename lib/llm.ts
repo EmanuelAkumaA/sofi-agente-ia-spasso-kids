@@ -1,0 +1,136 @@
+import OpenAI from 'openai'
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
+import { CONFIG } from './config'
+import type { ChatMsg } from './history'
+import { TOOLS, runTool, type ToolCtx } from './tools'
+import { linhaDeAgora } from './horario'
+import { emptyUsage, mergeUsage, usageFromResponse, type TokenUsage } from './cost'
+
+/**
+ * Cérebro da Sofi: OpenAI Responses API (raciocínio + tools), loop com
+ * previous_response_id. prompt.md vai em `instructions` (bloco fixo, cacheável);
+ * o contexto do turno (hora, nome, dados do card) entra como mensagem developer.
+ */
+
+const client = new OpenAI({ apiKey: CONFIG.openaiApiKey })
+export const PROMPT = fs.readFileSync(path.join(process.cwd(), 'prompt.md'), 'utf-8')
+const CACHE_KEY = `sofi:${crypto.createHash('sha256').update(PROMPT).digest('hex').slice(0, 16)}`
+const MAX_STEPS = 5
+
+export const SAUDACAO = 'Oii! Eu sou a Sofi da Spasso Kids. Como posso te ajudar?'
+
+export interface Contexto {
+  nome?: string | null
+  /** dados já gravados no card, em texto ("Data da festa: 23/01/2027; Convidados: 80") */
+  dadosDoCard?: string
+  agoraMs?: number
+}
+
+export interface AgentReply {
+  parts: string[]
+  toolsUsed: string[]
+  handoff: boolean
+  usage: TokenUsage
+}
+
+function toInput(msgs: ChatMsg[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const turns: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  for (const m of msgs) {
+    const role = m.dir === 'in' ? 'user' : 'assistant'
+    const body = (m.text || '').trim()
+    if (!body) continue
+    const prev = turns[turns.length - 1]
+    if (prev && prev.role === role) prev.content += `\n${body}`
+    else turns.push({ role, content: body })
+  }
+  while (turns.length && turns[0].role !== 'user') turns.shift()
+  while (turns.length && turns[turns.length - 1].role !== 'user') turns.pop()
+  return turns
+}
+
+function responsesText(resp: any): string {
+  if (typeof resp?.output_text === 'string' && resp.output_text.trim()) return resp.output_text.trim()
+  return (resp?.output || []).filter((o: any) => o.type === 'message')
+    .flatMap((o: any) => (o.content || []).filter((c: any) => c.type === 'output_text').map((c: any) => c.text))
+    .join('\n').trim()
+}
+
+export function toParts(text: string): string[] {
+  return text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).slice(0, 3)
+}
+
+function montarContexto(history: ChatMsg[], ctx: Contexto): string {
+  const primeiraFala = !history.some(m => m.dir === 'out')
+  return [
+    '[CONTEXTO DO SISTEMA — não é fala do cliente]',
+    linhaDeAgora(ctx.agoraMs),
+    ctx.nome ? `Nome do contato no WhatsApp: ${ctx.nome} (use só se parecer nome de pessoa).` : 'Nome do cliente: ainda não sabemos.',
+    ctx.dadosDoCard ? `Já anotado no card: ${ctx.dadosDoCard}.` : 'Nada anotado no card ainda.',
+    primeiraFala ? 'Esta é a PRIMEIRA resposta da Sofi nesta conversa (siga a regra da primeira mensagem).' : 'A Sofi já se apresentou nesta conversa.',
+  ].join('\n')
+}
+
+export async function generateReply(leadId: number, history: ChatMsg[], ctx: Contexto, toolCtx: ToolCtx = {}): Promise<AgentReply | null> {
+  const base = toInput(history)
+  if (!base.length) return null
+
+  // contexto ANTES da última fala do cliente: o modelo responde à fala, não ao contexto
+  let input: any[] = [...base.slice(0, -1), { role: 'developer', content: montarContexto(history, ctx) }, base[base.length - 1]]
+  const toolsUsed: string[] = []
+  let usage = emptyUsage()
+  let handoff = false
+  let previousId: string | undefined
+  let lastPartial = ''
+
+  for (let step = 0; step <= MAX_STEPS; step++) {
+    const final = step === MAX_STEPS
+    const params: any = {
+      model: CONFIG.llmModel,
+      instructions: PROMPT,
+      input,
+      ...(final ? {} : { tools: TOOLS.map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.input_schema, strict: false })) }),
+      reasoning: { effort: CONFIG.llmEffort },
+      max_output_tokens: 3000,
+      prompt_cache_key: CACHE_KEY,
+      ...(previousId ? { previous_response_id: previousId } : {}),
+    }
+    const resp: any = await client.responses.create(params)
+    previousId = resp.id
+    usage = mergeUsage(usage, usageFromResponse(resp))
+    const text = responsesText(resp)
+    if (text) lastPartial = text
+    const calls = (resp.output || []).filter((o: any) => o.type === 'function_call')
+
+    if (calls.length && !final) {
+      const next: any[] = []
+      for (const call of calls) {
+        let args: Record<string, unknown> = {}
+        try { args = JSON.parse(call.arguments || '{}') } catch { /* runTool devolve erro útil */ }
+        toolsUsed.push(call.name)
+        const out = await runTool(leadId, call.name, args, toolCtx)
+        if (out.handoff) handoff = true
+        if (out.isError) console.error(`[tool:${call.name}] lead ${leadId}: ${out.content}`)
+        next.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify({ ok: !out.isError, resultado: out.content }) })
+      }
+      input = next
+      continue
+    }
+    const finalText = text || lastPartial
+    if (!finalText) {
+      if (final) return null
+      input = [{ role: 'developer', content: 'Escreva agora a resposta para o cliente.' }]
+      continue
+    }
+    return { parts: garantirSaudacao(toParts(finalText), history), toolsUsed, handoff, usage }
+  }
+  return null
+}
+
+/** Na primeira fala, a apresentação da Sofi é obrigatória (regra do dono, 20/11/2026). */
+export function garantirSaudacao(parts: string[], history: ChatMsg[]): string[] {
+  if (history.some(m => m.dir === 'out') || !parts.length) return parts
+  if (/sou a sofi/i.test(parts.join(' '))) return parts
+  return [SAUDACAO.replace(' Como posso te ajudar?', ' 😊'), ...parts].slice(0, 3)
+}
