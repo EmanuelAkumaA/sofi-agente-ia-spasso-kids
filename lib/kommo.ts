@@ -1,4 +1,5 @@
 import { CONFIG } from './config'
+import { chaveTel } from './liberados'
 
 /**
  * Client da API v4 do Kommo. Retry em 429/5xx.
@@ -118,6 +119,39 @@ export async function getPipelines(): Promise<Array<{ id: number; name: string; 
 export async function getLeadFields(): Promise<Array<{ id: number; name: string; type: string; enums?: Array<{ id: number; value: string }> }>> {
   const r = await kommo<{ _embedded?: { custom_fields?: Array<{ id: number; name: string; type: string; enums?: Array<{ id: number; value: string }> }> } }>('GET', '/api/v4/leads/custom_fields?limit=250')
   return r._embedded?.custom_fields || []
+}
+
+/** Lead aberto mais recente deste telefone no funil indicado (confere o telefone dígito a dígito). */
+export async function findOpenLeadByPhone(phone: string, pipelineId: number): Promise<KommoLead | null> {
+  const d = phone.replace(/\D/g, '')
+  const r = await kommo<{ _embedded?: { contacts?: Array<KommoContact & { _embedded?: { leads?: Array<{ id: number }> } }> } } | ''>(
+    'GET', `/api/v4/contacts?query=${encodeURIComponent(d.slice(-8))}&with=leads&limit=10`)
+  const contatos = (r && typeof r === 'object' ? r._embedded?.contacts : []) || []
+  let melhor: KommoLead | null = null
+  for (const c of contatos) {
+    const fones = (c.custom_fields_values || []).filter(f => f.field_code === 'PHONE').flatMap(f => f.values.map(v => String(v.value || '').replace(/\D/g, '')))
+    if (!fones.some(f => chaveTel(f) === chaveTel(d))) continue
+    for (const l of c._embedded?.leads || []) {
+      const lead = await getLead(l.id).catch(() => null)
+      if (!lead || lead.pipeline_id !== pipelineId || lead.status_id === 142 || lead.status_id === 143) continue
+      if (!melhor || lead.id > melhor.id) melhor = lead
+    }
+  }
+  return melhor
+}
+
+/** Lead + contato com telefone, num POST só. */
+export async function createLeadWithContact(p: { name: string; phone: string; pipelineId: number; statusId: number; tags: string[] }): Promise<number> {
+  const d = await kommo<Array<{ id: number }>>('POST', '/api/v4/leads/complex', [{
+    name: p.name, pipeline_id: p.pipelineId, status_id: p.statusId,
+    _embedded: {
+      tags: p.tags.map(name => ({ name })),
+      contacts: [{ name: p.name, custom_fields_values: [{ field_code: 'PHONE', values: [{ value: `+${p.phone}`, enum_code: 'MOB' }] }] }],
+    },
+  }])
+  const id = d?.[0]?.id
+  if (!id) throw new Error('leads/complex não devolveu id')
+  return id
 }
 
 /** Cria lead de TESTE (sem contato) no funil da Sofi, já com a tag de liberação. */

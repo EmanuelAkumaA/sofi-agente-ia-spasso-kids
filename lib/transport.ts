@@ -1,6 +1,7 @@
 import { CONFIG } from './config'
 import { getLeadPhone, sleep, type KommoLead } from './kommo'
 import { rememberSent } from './history'
+import { numeroLiberado } from './liberados'
 
 /**
  * Saída da Sofi. TRANSPORT=dry: não envia nada (testes sem número conectado).
@@ -14,6 +15,7 @@ export async function sendReply(lead: KommoLead, parts: string[]): Promise<SendR
   if (!CONFIG.uazapiBaseUrl || !CONFIG.uazapiToken) return { ok: false, dry: false, erro: 'uazapi não configurada' }
   const phone = await getLeadPhone(lead)
   if (!phone) return { ok: false, dry: false, erro: 'lead sem telefone' }
+  if (!numeroLiberado(phone)) return { ok: false, dry: false, erro: 'número fora da lista de teste (trava de rampagem)' }
   for (const text of parts) {
     const res = await fetch(`${CONFIG.uazapiBaseUrl}/send/text`, {
       method: 'POST',

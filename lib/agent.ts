@@ -2,7 +2,8 @@ import { CONFIG } from './config'
 import { CRM_MAP } from './crm-map'
 import { adoptToken, currentToken, debounceAndClaim, releaseLock } from './buffer'
 import { appendMessage, getHistory } from './history'
-import { getContactName, getLead, tagNames, type KommoLead } from './kommo'
+import { getContactName, getLead, getLeadPhone, tagNames, type KommoLead } from './kommo'
+import { numeroLiberado } from './liberados'
 import { generateReply } from './llm'
 import { sendReply } from './transport'
 import { logExec } from './execlog'
@@ -56,6 +57,11 @@ export async function processLead(leadId: number, webhookId: string, esperaSegun
       const gate = gateDoLead(lead)
       if (!gate.ok) {
         await logExec({ ts: new Date().toISOString(), leadId, resultado: 'pulou', detalhe: `gate: ${gate.motivo}`, duracaoMs: Date.now() - t0, tools: [] })
+        return
+      }
+      // Rampagem por número: com envio real ligado, só atende quem está na lista de teste.
+      if (CONFIG.transport === 'uazapi' && !CONFIG.atendeTodos && !numeroLiberado(await getLeadPhone(lead))) {
+        await logExec({ ts: new Date().toISOString(), leadId, resultado: 'pulou', detalhe: 'número fora da lista de teste', duracaoMs: Date.now() - t0, tools: [] })
         return
       }
       const history = await getHistory(leadId)

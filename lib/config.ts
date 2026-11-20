@@ -17,6 +17,10 @@ export const CONFIG = {
   transport: (process.env.TRANSPORT || 'dry') as 'dry' | 'uazapi',
   uazapiBaseUrl: (process.env.UAZAPI_BASE_URL || '').replace(/\/+$/, ''),
   uazapiToken: process.env.UAZAPI_TOKEN || '',
+  // Números que a Sofi pode atender (só dígitos, separados por vírgula). Vazio = NINGUÉM; "todos" = todos.
+  // Trava de rampagem em código: o envio recusa qualquer número fora da lista.
+  testeNumeros: (process.env.TESTE_NUMEROS || '').split(/[,;\s]+/).map(s => s.replace(/\D/g, '')).filter(Boolean),
+  atendeTodos: (process.env.TESTE_NUMEROS || '').trim().toLowerCase() === 'todos',
 
   openaiApiKey: required('OPENAI_API_KEY'),
   llmModel: process.env.LLM_MODEL_RESPONSES || 'gpt-5.6-luna',
