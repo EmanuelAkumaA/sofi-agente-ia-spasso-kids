@@ -50,14 +50,15 @@ assert.ok(!gateDoLead({ ...base, _embedded: { tags: [{ id: 1, name: 'sofi' }, { 
 // dados do card
 assert.strictEqual(dadosDoCard({ ...base, custom_fields_values: [{ field_id: F.convidados.id, values: [{ value: 80 }] }, { field_id: 999, values: [{ value: 'x' }] }] }), 'Convidados: 80')
 
-// lista de teste (rodar com TESTE_NUMEROS=5511999990000)
-import { numeroLiberado } from '../lib/liberados'
-if (process.env.TESTE_NUMEROS === '5511999990000') {
-  assert.ok(numeroLiberado('5511999990000'))
-  assert.ok(numeroLiberado('+55 (11) 99999-0000'))
-  assert.ok(numeroLiberado('551199990000'), 'sem o 9º dígito')
-  assert.ok(!numeroLiberado('5511988887777'))
-  assert.ok(!numeroLiberado(''))
-} else console.log('(lista de teste não conferida: rode com TESTE_NUMEROS=5511999990000)')
+// liberação (lista de teste ou todos; a Central grava em ak:liberacao)
+import { liberadoPor } from '../lib/liberados'
+const teste = { modo: 'teste' as const, numeros: ['5511999990000'] }
+assert.ok(liberadoPor(teste, '5511999990000'))
+assert.ok(liberadoPor(teste, '+55 (11) 99999-0000'))
+assert.ok(liberadoPor(teste, '551199990000'), 'sem o 9º dígito')
+assert.ok(!liberadoPor(teste, '5511988887777'))
+assert.ok(!liberadoPor(teste, ''))
+assert.ok(!liberadoPor({ modo: 'teste', numeros: [] }, '5511999990000'), 'lista vazia = ninguém')
+assert.ok(liberadoPor({ modo: 'todos', numeros: [] }, '5511988887777'))
 
 console.log('test-unit: todas as travas passaram')

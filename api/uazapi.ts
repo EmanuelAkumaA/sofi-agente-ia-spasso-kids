@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!secretOk(String(req.headers['x-webhook-secret'] || req.query.secret || ''))) return res.status(401).json({ error: 'unauthorized' })
   const m = lerEvento(req.body)
   if (!m || m.grupo || !m.tel || !m.id || m.deMim) return res.status(200).json({ ok: true, ignorado: true })
-  if (!numeroLiberado(m.tel)) return res.status(200).json({ ok: true, ignorado: 'número fora da lista' })
+  if (!(await numeroLiberado(m.tel))) return res.status(200).json({ ok: true, ignorado: 'número fora da lista' })
   waitUntil(ingerir(m).catch(e => console.error('[uazapi]', e)))
   return res.status(200).json({ ok: true })
 }
