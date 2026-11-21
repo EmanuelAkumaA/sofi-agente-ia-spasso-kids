@@ -5,9 +5,26 @@ import { chaveTel } from './liberados'
  * Client da API v4 do Kommo. Retry em 429/5xx.
  * PATCH de tags SUBSTITUI o conjunto inteiro: use addLeadTags (merge local).
  */
+// 🩸 20/11/2026 (Zaya): o Kommo fecha conexão parada e o fetch reaproveita uma morta: "fetch failed",
+// cause.code UND_ERR_SOCKET ("other side closed"). Repete só GET e PATCH (POST de nota/tarefa duplicaria).
+const CODIGOS_DE_CONEXAO = ['UND_ERR_SOCKET', 'ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'ECONNREFUSED', 'EAI_AGAIN']
+export function falhaDeConexao(e: unknown): boolean {
+  const causa = (e as { cause?: { code?: string } })?.cause
+  return e instanceof TypeError && /fetch failed/i.test(e.message) && CODIGOS_DE_CONEXAO.includes(String(causa?.code))
+}
+async function fetchKommo(url: string, init: RequestInit = {}): Promise<Response> {
+  const metodo = (init.method || 'GET').toUpperCase()
+  for (let i = 0; ; i++) {
+    try { return await fetch(url, init) } catch (e) {
+      if (i < 2 && (metodo === 'GET' || metodo === 'PATCH') && falhaDeConexao(e)) { await new Promise(r => setTimeout(r, 500 * (i + 1))); continue }
+      throw e
+    }
+  }
+}
+
 async function kommo<T>(method: string, path: string, body?: unknown, retries = 3): Promise<T> {
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`${CONFIG.kommoDomain}${path}`, {
+    const res = await fetchKommo(`${CONFIG.kommoDomain}${path}`, {
       method,
       headers: {
         Authorization: `Bearer ${CONFIG.kommoToken}`,
