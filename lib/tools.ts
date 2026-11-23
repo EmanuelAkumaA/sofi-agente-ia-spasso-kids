@@ -1,5 +1,6 @@
 import { CONFIG } from './config'
-import { CRM_MAP, etapaDoMotivo } from './crm-map'
+import { CRM_MAP, destinoDaPassagem } from './crm-map'
+import { instanciaDoLead } from './transport'
 import { addLeadNote, addLeadTags, createTask, getLead, patchLead, type KommoFieldValue } from './kommo'
 import { proximoHorarioUtil } from './horario'
 
@@ -101,8 +102,10 @@ export async function runTool(leadId: number, name: string, args: Record<string,
       if (ctx.dryRun) return { content: `(teste) passado para a vendedora: ${motivo}`, handoff: true }
       const lead = await getLead(leadId)
       if (lead.pipeline_id !== CRM_MAP.pipelineId) return { content: 'lead fora do funil da Triagem: não movido', isError: true }
+      // Chegou pelo número de uma vendedora → vai para o funil dela, com ela de responsável.
+      const destino = destinoDaPassagem(await instanciaDoLead(leadId), motivo)
       await patchLead(leadId, {
-        status_id: etapaDoMotivo(motivo),
+        ...destino,
         custom_fields_values: [
           { field_id: F.motivo.id, values: [{ enum_id: enumId }] },
           { field_id: F.resumo.id, values: [{ value: resumo }] },
@@ -111,7 +114,7 @@ export async function runTool(leadId: number, name: string, args: Record<string,
       await addLeadTags(leadId, [CONFIG.humanTag])
       await addLeadNote(leadId, `🤖 Sofi passou para a vendedora — ${motivo}\n\n${resumo}`)
       if (motivo !== 'Não é cliente') {
-        await createTask({ leadId, text: `Sofi: ${motivo}. Retomar o cliente pelo WhatsApp.`, completeTill: proximoHorarioUtil(), responsibleUserId: lead.responsible_user_id })
+        await createTask({ leadId, text: `Sofi: ${motivo}. Retomar o cliente pelo WhatsApp.`, completeTill: proximoHorarioUtil(), responsibleUserId: destino.responsible_user_id ?? lead.responsible_user_id })
       }
       return { content: `passado para a vendedora (${motivo})`, handoff: true }
     }

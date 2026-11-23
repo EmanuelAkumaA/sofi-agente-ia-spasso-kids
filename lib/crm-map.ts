@@ -45,6 +45,28 @@ export const CRM_MAP = {
 
 export type Motivo = keyof typeof CRM_MAP.fields.motivo.enums
 
+/**
+ * Vendedoras (funis criados em 2026-11-23). O lead que chega pelo número de uma delas
+ * é passado para o funil dela, com ela de responsável.
+ */
+export const VENDEDORAS = {
+  naomy: { nome: 'Naomy', userId: 15276460, pipelineId: 14814284, etapas: { novo: 114472440, agendarVisita: 114472444, emAtendimento: 114472448 } },
+  edi: { nome: 'Edi', userId: 14926311, pipelineId: 14814288, etapas: { novo: 114472468, agendarVisita: 114472472, emAtendimento: 114472476 } },
+} as const
+export type Vendedora = keyof typeof VENDEDORAS
+export const ehVendedora = (inst: string): inst is Vendedora => Object.prototype.hasOwnProperty.call(VENDEDORAS, inst)
+
+/** Funis onde um lead aberto desse telefone conta como o mesmo atendimento (a Sofi não abre outro). */
+export const FUNIS_DO_ATENDIMENTO: number[] = [CRM_MAP.pipelineId, ...Object.values(VENDEDORAS).map(v => v.pipelineId)]
+
+/** Para onde vai o lead na passagem. Sem vendedora conhecida, ou "Não é cliente", fica na Triagem. */
+export function destinoDaPassagem(inst: string, motivo: string): { pipeline_id: number; status_id: number; responsible_user_id?: number } {
+  if (!ehVendedora(inst) || motivo === 'Não é cliente') return { pipeline_id: CRM_MAP.pipelineId, status_id: etapaDoMotivo(motivo) }
+  const v = VENDEDORAS[inst]
+  const status_id = motivo === 'Qualificado' ? v.etapas.novo : motivo === 'Quer visita' ? v.etapas.agendarVisita : v.etapas.emAtendimento
+  return { pipeline_id: v.pipelineId, status_id, responsible_user_id: v.userId }
+}
+
 /** Etapa de destino de cada motivo de passagem. */
 export function etapaDoMotivo(motivo: string): number {
   const s = CRM_MAP.stages

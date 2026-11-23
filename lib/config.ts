@@ -15,8 +15,12 @@ export const CONFIG = {
   kommoAccountId: required('KOMMO_ACCOUNT_ID'),
 
   transport: (process.env.TRANSPORT || 'dry') as 'dry' | 'uazapi',
-  uazapiBaseUrl: (process.env.UAZAPI_BASE_URL || '').replace(/\/+$/, ''),
-  uazapiToken: process.env.UAZAPI_TOKEN || '',
+  // Instâncias uazapi por número. "kuma" = teste pelo WhatsApp da Kuma; as vendedoras usam o servidor da Spasso.
+  instancias: {
+    kuma: { url: (process.env.UAZAPI_BASE_URL || '').replace(/\/+$/, ''), token: process.env.UAZAPI_TOKEN || '' },
+    naomy: { url: (process.env.UAZAPI_SPASSO_URL || '').replace(/\/+$/, ''), token: process.env.UAZAPI_TOKEN_NAOMY || '' },
+    edi: { url: (process.env.UAZAPI_SPASSO_URL || '').replace(/\/+$/, ''), token: process.env.UAZAPI_TOKEN_EDI || '' },
+  } as Record<string, { url: string; token: string }>,
   // Números que a Sofi pode atender (só dígitos, separados por vírgula). Vazio = NINGUÉM; "todos" = todos.
   // Trava de rampagem em código: o envio recusa qualquer número fora da lista.
   testeNumeros: (process.env.TESTE_NUMEROS || '').split(/[,;\s]+/).map(s => s.replace(/\D/g, '')).filter(Boolean),

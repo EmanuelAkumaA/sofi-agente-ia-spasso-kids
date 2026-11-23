@@ -1,7 +1,7 @@
 // Travas de lógica pura (sem IA, sem Kommo). Rodar: node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/test-unit.ts
 import assert from 'assert'
 import { camposDosDados } from '../lib/tools'
-import { CRM_MAP, etapaDoMotivo } from '../lib/crm-map'
+import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedora, etapaDoMotivo } from '../lib/crm-map'
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
 import { garantirSaudacao, SAUDACAO } from '../lib/llm'
 import { dadosDoCard, gateDoLead } from '../lib/agent'
@@ -24,6 +24,16 @@ assert.strictEqual(etapaDoMotivo('Qualificado'), CRM_MAP.stages.qualificado.id)
 assert.strictEqual(etapaDoMotivo('Quer visita'), CRM_MAP.stages.querVisita.id)
 assert.strictEqual(etapaDoMotivo('Não é cliente'), CRM_MAP.stages.naoECliente.id)
 assert.strictEqual(etapaDoMotivo('Reclamação'), CRM_MAP.stages.comVendedora.id)
+
+// passagem: número da vendedora → funil dela
+const N = VENDEDORAS.naomy, E = VENDEDORAS.edi
+assert.deepStrictEqual(destinoDaPassagem('naomy', 'Qualificado'), { pipeline_id: N.pipelineId, status_id: N.etapas.novo, responsible_user_id: N.userId })
+assert.deepStrictEqual(destinoDaPassagem('edi', 'Quer visita'), { pipeline_id: E.pipelineId, status_id: E.etapas.agendarVisita, responsible_user_id: E.userId })
+assert.strictEqual(destinoDaPassagem('edi', 'Reclamação').status_id, E.etapas.emAtendimento)
+assert.deepStrictEqual(destinoDaPassagem('naomy', 'Não é cliente'), { pipeline_id: CRM_MAP.pipelineId, status_id: CRM_MAP.stages.naoECliente.id })
+assert.deepStrictEqual(destinoDaPassagem('kuma', 'Qualificado'), { pipeline_id: CRM_MAP.pipelineId, status_id: CRM_MAP.stages.qualificado.id })
+assert.ok(!ehVendedora('toString'), 'nome de propriedade não vira vendedora')
+assert.ok(FUNIS_DO_ATENDIMENTO.includes(N.pipelineId) && FUNIS_DO_ATENDIMENTO.includes(E.pipelineId))
 
 // horário (sex 20/11/2026)
 assert.ok(dentroDoHorario(brt('2026-11-20T10:00:00')))

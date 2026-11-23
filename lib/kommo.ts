@@ -138,8 +138,8 @@ export async function getLeadFields(): Promise<Array<{ id: number; name: string;
   return r._embedded?.custom_fields || []
 }
 
-/** Lead aberto mais recente deste telefone no funil indicado (confere o telefone dígito a dígito). */
-export async function findOpenLeadByPhone(phone: string, pipelineId: number): Promise<KommoLead | null> {
+/** Lead aberto mais recente deste telefone nos funis indicados (confere o telefone dígito a dígito). */
+export async function findOpenLeadByPhone(phone: string, pipelineIds: number[]): Promise<KommoLead | null> {
   const d = phone.replace(/\D/g, '')
   const r = await kommo<{ _embedded?: { contacts?: Array<KommoContact & { _embedded?: { leads?: Array<{ id: number }> } }> } } | ''>(
     'GET', `/api/v4/contacts?query=${encodeURIComponent(d.slice(-8))}&with=leads&limit=10`)
@@ -150,7 +150,7 @@ export async function findOpenLeadByPhone(phone: string, pipelineId: number): Pr
     if (!fones.some(f => chaveTel(f) === chaveTel(d))) continue
     for (const l of c._embedded?.leads || []) {
       const lead = await getLead(l.id).catch(() => null)
-      if (!lead || lead.pipeline_id !== pipelineId || lead.status_id === 142 || lead.status_id === 143) continue
+      if (!lead || !pipelineIds.includes(lead.pipeline_id) || lead.status_id === 142 || lead.status_id === 143) continue
       if (!melhor || lead.id > melhor.id) melhor = lead
     }
   }
@@ -158,9 +158,10 @@ export async function findOpenLeadByPhone(phone: string, pipelineId: number): Pr
 }
 
 /** Lead + contato com telefone, num POST só. */
-export async function createLeadWithContact(p: { name: string; phone: string; pipelineId: number; statusId: number; tags: string[] }): Promise<number> {
+export async function createLeadWithContact(p: { name: string; phone: string; pipelineId: number; statusId: number; tags: string[]; responsibleUserId?: number }): Promise<number> {
   const d = await kommo<Array<{ id: number }>>('POST', '/api/v4/leads/complex', [{
     name: p.name, pipeline_id: p.pipelineId, status_id: p.statusId,
+    ...(p.responsibleUserId ? { responsible_user_id: p.responsibleUserId } : {}),
     _embedded: {
       tags: p.tags.map(name => ({ name })),
       contacts: [{ name: p.name, custom_fields_values: [{ field_code: 'PHONE', values: [{ value: `+${p.phone}`, enum_code: 'MOB' }] }] }],
