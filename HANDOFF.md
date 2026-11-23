@@ -7,7 +7,9 @@
 - Passagem (`destinoDaPassagem` em `lib/crm-map.ts`): Qualificado → NOVO DA SOFI, Quer visita → AGENDAR VISITA, demais → EM ATENDIMENTO, no funil "Naomy" (14814284) ou "Edi" (14814288); "Não é cliente" fica na Triagem.
 - Lead aberto nos funis das vendedoras conta como o mesmo atendimento: a Sofi não abre card novo.
 - Mensagem `fromMe` que não veio da API = a vendedora respondeu pelo celular → tag `atendimento-humano`.
-- Os dois números também estão no Coex: conferir no E2E se abre card duplicado no "Funil de vendas" e se o robô de menu responde.
+- Os dois números também estão no Coex: o lead real nasce no "Funil de vendas / CONTATO NOVO" (responsável Ediane) e o robô de menu do Kommo responde.
+
+**Teste valendo (2026-11-23, até o dono parar):** `ATENDE_TRIAGEM=sim`. O round robin do Kommo (configurado pelo dono) manda um lead para o robô e outro para a Triagem da Sofi com a tag `sofi`. Para número fora da lista, a Sofi procura o card na Triagem com a tag em até 3 tentativas de 6 s; achou → atende; não achou → ignora (é do robô). Nunca cria card para esses números. Resumo da passagem vai **só na nota** (campo Resumo não é mais gravado). Parar: pausa geral na Central IAs Kuma ou `ATENDE_TRIAGEM` fora + redeploy.
 
 Estado em 2026-11-20: **em teste pelo número da Kuma** (TRANSPORT=uazapi com a instância do Ítalo SDR). O SDR repassa para `/api/uazapi` só os números de `SOFI_TESTE_NUMEROS` (no SDR); a Sofi confere `TESTE_NUMEROS` na entrada, no atendimento e no envio (vazio = ninguém, `todos` = todos). Para desligar o teste: apagar `SOFI_TESTE_NUMEROS`/`SOFI_URL` no SDR e redeploy; na Sofi, `TRANSPORT=dry`.
 
