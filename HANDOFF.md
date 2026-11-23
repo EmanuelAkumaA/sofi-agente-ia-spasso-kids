@@ -1,5 +1,14 @@
 # Sofi · agente de IA da Spasso Kids & Teens — HANDOFF
 
+**Estado em 2026-11-23: no ar, em teste, nos números da Naomy e da Edi** (servidor `UAZAPI_SPASSO_URL`, tokens `UAZAPI_TOKEN_NAOMY`/`_EDI`).
+- Webhook de cada instância → `/api/uazapi?inst=naomy|edi&secret=...` (evento `messages`, exclui `wasSentByApi` e grupos). Sem `inst` = "kuma" (repasse do Ítalo SDR, mantido).
+- `TESTE_NUMEROS` = dono + pessoais da Naomy e da Edi. Fora disso, ignora.
+- Lead nasce na Triagem com a vendedora do número como responsável; a instância fica em `sofi:inst:<leadId>` (Redis) e a resposta sai por ela.
+- Passagem (`destinoDaPassagem` em `lib/crm-map.ts`): Qualificado → NOVO DA SOFI, Quer visita → AGENDAR VISITA, demais → EM ATENDIMENTO, no funil "Naomy" (14814284) ou "Edi" (14814288); "Não é cliente" fica na Triagem.
+- Lead aberto nos funis das vendedoras conta como o mesmo atendimento: a Sofi não abre card novo.
+- Mensagem `fromMe` que não veio da API = a vendedora respondeu pelo celular → tag `atendimento-humano`.
+- Os dois números também estão no Coex: conferir no E2E se abre card duplicado no "Funil de vendas" e se o robô de menu responde.
+
 Estado em 2026-11-20: **em teste pelo número da Kuma** (TRANSPORT=uazapi com a instância do Ítalo SDR). O SDR repassa para `/api/uazapi` só os números de `SOFI_TESTE_NUMEROS` (no SDR); a Sofi confere `TESTE_NUMEROS` na entrada, no atendimento e no envio (vazio = ninguém, `todos` = todos). Para desligar o teste: apagar `SOFI_TESTE_NUMEROS`/`SOFI_URL` no SDR e redeploy; na Sofi, `TRANSPORT=dry`.
 
 ## Onde está
