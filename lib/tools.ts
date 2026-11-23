@@ -106,10 +106,8 @@ export async function runTool(leadId: number, name: string, args: Record<string,
       const destino = destinoDaPassagem(await instanciaDoLead(leadId), motivo)
       await patchLead(leadId, {
         ...destino,
-        custom_fields_values: [
-          { field_id: F.motivo.id, values: [{ enum_id: enumId }] },
-          { field_id: F.resumo.id, values: [{ value: resumo }] },
-        ],
+        // O resumo vai só na nota (decisão do dono, 2026-11-23), não no campo.
+        custom_fields_values: [{ field_id: F.motivo.id, values: [{ enum_id: enumId }] }],
       })
       await addLeadTags(leadId, [CONFIG.humanTag])
       await addLeadNote(leadId, `🤖 Sofi passou para a vendedora — ${motivo}\n\n${resumo}`)

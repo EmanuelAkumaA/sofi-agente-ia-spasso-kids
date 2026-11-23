@@ -25,6 +25,9 @@ export const CONFIG = {
   // Trava de rampagem em código: o envio recusa qualquer número fora da lista.
   testeNumeros: (process.env.TESTE_NUMEROS || '').split(/[,;\s]+/).map(s => s.replace(/\D/g, '')).filter(Boolean),
   atendeTodos: (process.env.TESTE_NUMEROS || '').trim().toLowerCase() === 'todos',
+  // ATENDE_TRIAGEM=sim: atende também quem NÃO está na lista, desde que o Kommo tenha posto o card na
+  // Triagem com a tag `sofi` (round robin do Kommo). Nunca cria card para esses números. Parar: pausa geral ou tirar.
+  atendeTriagem: (process.env.ATENDE_TRIAGEM || '').trim().toLowerCase() === 'sim',
 
   openaiApiKey: required('OPENAI_API_KEY'),
   llmModel: process.env.LLM_MODEL_RESPONSES || 'gpt-5.6-luna',

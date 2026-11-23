@@ -1,7 +1,7 @@
 import { CONFIG } from './config'
 import { getLeadPhone, sleep, type KommoLead } from './kommo'
 import { rememberSent } from './history'
-import { numeroLiberado } from './liberados'
+import { podeAtender } from './liberados'
 import { redis } from './redis'
 
 /**
@@ -28,7 +28,7 @@ export async function sendReply(lead: KommoLead, parts: string[]): Promise<SendR
   if (!u?.url || !u.token) return { ok: false, dry: false, erro: `uazapi não configurada (${inst})` }
   const phone = await getLeadPhone(lead)
   if (!phone) return { ok: false, dry: false, erro: 'lead sem telefone' }
-  if (!(await numeroLiberado(phone))) return { ok: false, dry: false, erro: 'número fora da lista de teste (trava de rampagem)' }
+  if (!(await podeAtender(phone))) return { ok: false, dry: false, erro: 'número fora da lista de teste (trava de rampagem)' }
   for (const text of parts) {
     const res = await fetch(`${u.url}/send/text`, {
       method: 'POST',

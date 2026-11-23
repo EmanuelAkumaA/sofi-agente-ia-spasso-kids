@@ -38,6 +38,11 @@ export function liberadoPor(l: Liberacao, tel: string | null | undefined): boole
   return !!k && l.numeros.some(t => chaveTel(t) === k)
 }
 
+/** Pode receber resposta: número da lista OU (com ATENDE_TRIAGEM) qualquer card que já passou pelo gate. */
+export async function podeAtender(tel: string | null | undefined): Promise<boolean> {
+  return CONFIG.atendeTriagem || numeroLiberado(tel)
+}
+
 /** Pausa geral pela Central: a Sofi não responde ninguém enquanto estiver ligada. */
 export async function pausaGeral(): Promise<boolean> {
   try { return !!(await redis.get('ak:pausa:geral')) } catch { return false }
