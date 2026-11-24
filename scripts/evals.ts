@@ -1,7 +1,7 @@
 // Exame do cérebro da Sofi. Ferramentas em modo teste (nada vai ao Kommo).
 // Rodar: node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/evals.ts [filtro] [--vezes=N]
 import OpenAI from 'openai'
-import { generateReply, saudacao } from '../lib/llm'
+import { BLOCO_SPASSO, generateReply, saudacao } from '../lib/llm'
 import { instrucaoDoToque } from '../lib/follow'
 import type { ChatMsg } from '../lib/history'
 import { CONFIG } from '../lib/config'
@@ -24,6 +24,7 @@ const quer = (cond: boolean, msg: string) => (cond ? null : msg)
 const VICIOS = (t: string) => {
   const ab = t.split(/\n\s*\n/).find(p => /^(perfeito|[óo]timo|excelente|maravilha|show|certo|entendi|combinado)(?![a-zà-ÿ])/i.test(p.trim()))
   if (ab) return `abriu com frase pronta: ${ab.slice(0, 40)}`
+  if (/[—–]/.test(t)) return 'usou travessão'
   return (t.match(/Mariana/g) || []).length > 1 ? 'nome repetido na resposta' : null
 }
 const QUALI: Cenario['conversa'] = [
@@ -47,8 +48,8 @@ const CENARIOS: Cenario[] = [
     criterio: 'NÃO diz que a data está livre nem ocupada; diz que anota e que a vendedora confirma a disponibilidade. Pode seguir pedindo outro dado.',
     checar: t => SEM_VALOR(t) || quer(!/(?<!se (?:a data |ela )?)(?<![a-zà-ÿ])(est[aá]|t[aá]) (livre|dispon[ií]vel)|temos (essa|a) data|n[aã]o temos/i.test(t), 'afirmou disponibilidade') },
   { id: 'crianca-paga', conversa: [...QUALI, ['in', 'criança de 5 anos paga?']],
-    criterio: 'NÃO responde a regra de quem paga; diz que a vendedora explica as cortesias certinho. Pode seguir qualificando.',
-    checar: t => SEM_VALOR(t) || quer(!/(n[aã]o paga|s[aã]o cortesia|at[eé] \d+ anos)/i.test(t), 'respondeu a regra de criança') },
+    criterio: 'Diz que crianças até 5 anos são cortesia (regra liberada pela Spasso) e que a vendedora explica o resto; não fala valor; pode seguir qualificando.',
+    checar: t => SEM_VALOR(t) || quer(/5 anos/.test(t) && /cortesia/i.test(t), 'não disse que até 5 anos é cortesia') },
   { id: 'desconto', conversa: [...QUALI, ['in', '23/01, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Você já conhece nosso espaço?'], ['in', 'já conheço. Consegue um desconto pagando à vista?']],
     criterio: 'Não promete desconto nem fala percentual; diz que existem condições especiais e que a vendedora apresenta; passa para a vendedora.',
     checar: (t, c) => SEM_VALOR(t) || quer(passou(c, 'Desconto / negociação') || passou(c, 'Qualificado'), 'não passou para a vendedora') },
@@ -144,6 +145,15 @@ const CENARIOS: Cenario[] = [
       ['in', 'Ainda não sei certinho, mas depois do dia 16']],
     criterio: 'Aceita "depois do dia 16 de maio" (é maio de 2027, óbvio) sem perguntar o ano; segue para outro dado (aniversariante) ou pergunta se tem um dia preferido, uma pergunta só.',
     checar: t => quer(!/2027\?|que ano|qual ano|de 2027 ou|seria em maio de/i.test(t), `perguntou o ano: ${t}`) },
+  { id: 'bloco-orcamento', conversa: [['in', 'Oi! Me interessei pelo buffet e queria saber como funciona o orçamento.']],
+    criterio: 'Apresenta-se, manda o bloco fixo da Spasso logo depois (espaço, 4 horas, 50 a 350 convidados, cortesia até 5 anos) e no último balão responde o orçamento sem valor e pergunta a data. Uma pergunta só.',
+    checar: t => SEM_VALOR(t) || quer(t.includes(BLOCO_SPASSO), 'sem o bloco da Spasso') || quer(t.indexOf(BLOCO_SPASSO) < t.lastIndexOf('?'), 'o bloco não veio antes da pergunta') },
+  { id: 'bloco-depois-do-oi', conversa: [['in', 'oi'], ['out', saudacao('Mariana')], ['in', 'queria fazer o aniversário do meu filho aí']],
+    criterio: 'O cliente só tinha dito oi; agora é cliente de festa: manda o bloco fixo da Spasso e pergunta a data (sem se apresentar de novo).',
+    checar: t => quer(t.includes(BLOCO_SPASSO), 'sem o bloco da Spasso') || quer(!/sou a sofi/i.test(t), 'se apresentou de novo') },
+  { id: 'bloco-nao-em-curriculo', conversa: [['in', 'Oi, vocês estão contratando garçom pra fim de semana?']],
+    criterio: 'É vaga de trabalho: NÃO manda o bloco de festa; agradece o interesse e faz uma pergunta da triagem.',
+    checar: t => quer(!t.includes(BLOCO_SPASSO) && !/\[\[/.test(t), 'mandou o bloco de festa para currículo') },
   { id: 'robo', conversa: [...QUALI, ['in', 'você é um robô?']],
     criterio: 'Assume com naturalidade que é a assistente virtual da Spasso e segue ajudando (retoma a pergunta da data).' },
   { id: 'fora-do-horario', agora: '2026-11-21T15:00:00', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Você já conhece nosso espaço pessoalmente?'], ['in', 'conheço sim, já fui numa festa aí']],

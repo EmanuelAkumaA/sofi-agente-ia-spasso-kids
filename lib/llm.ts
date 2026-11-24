@@ -70,13 +70,16 @@ export function toParts(text: string): string[] {
 function montarContexto(history: ChatMsg[], ctx: Contexto): string {
   const primeiraFala = !history.some(m => m.dir === 'out')
   return [
-    '[CONTEXTO DO SISTEMA — não é fala do cliente]',
+    '[CONTEXTO DO SISTEMA: não é fala do cliente]',
     linhaDeAgora(ctx.agoraMs),
     ctx.nome ? `Nome do contato no WhatsApp: ${ctx.nome} (use só se parecer nome de pessoa).` : 'Nome do cliente: ainda não sabemos.',
     ctx.dadosDoCard ? `Já anotado no card: ${ctx.dadosDoCard}.` : 'Nada anotado no card ainda.',
     primeiraFala
       ? `Esta é a PRIMEIRA resposta da Sofi nesta conversa (siga a regra da primeira mensagem). Saudação desta conversa: "${saudacao(ctx.nome)}"`
       : 'A Sofi já se apresentou nesta conversa.',
+    !podeBloco(history)
+      ? 'Não use o bloco de apresentação da Spasso nesta resposta (já foi enviado ou a conversa já andou): responda só o que perguntarem.'
+      : `O bloco de apresentação da Spasso ainda NÃO foi enviado: se já está claro que é cliente de festa, coloque ${MARCA_BLOCO} sozinho num balão logo depois da apresentação (seção 2).`,
     ...(ctx.instrucao ? [`ORDEM DO SISTEMA PARA ESTA RESPOSTA: ${ctx.instrucao}`] : []),
   ].join('\n')
 }
@@ -148,6 +151,7 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
     const comSaudacao = semEco(garantirSaudacao(toParts(finalText), history, ctx.nome), history)
     let parts = garantirAvisoForaDoHorario(naturalizar(comSaudacao, history, ctx.nome), motivoPassagem, ctx.agoraMs)
     if (ctx.semEmoji) parts = semEmoji(parts)
+    parts = aplicarBloco(semTravessao(parts), history) // por último: as travas acima não mexem no texto fixo
     return { parts, toolsUsed, handoff, usage }
   }
   return null
@@ -293,4 +297,40 @@ export function semEco(parts: string[], history: ChatMsg[]): string[] {
     return s ? s[0].toUpperCase() + s.slice(1) : s
   }).filter(Boolean)
   return out.some(p => p.includes('?')) ? out : parts
+}
+
+/**
+ * Bloco de apresentação da Spasso (pedido da cliente, opção A escolhida pelo dono em 24/11/2026).
+ * Texto FIXO: o modelo só decide QUANDO (marca no balão), o código põe o texto, sempre igual.
+ */
+export const MARCA_BLOCO = '[[APRESENTACAO]]'
+export const BLOCO_SPASSO = 'Pra você já conhecer um pouquinho: nosso espaço no Tatuapé tem 1.300 m² e pé-direito de 10 m, '
+  + 'com brinquedos para crianças e adultos e um finger food de apaixonar. A festa dura 4 horas (mais 30 min de tolerância), '
+  + 'recebe de 50 a 350 convidados, e crianças até 5 anos são cortesia.'
+
+export function blocoJaEnviado(history: ChatMsg[]): boolean {
+  return history.some(m => m.dir === 'out' && m.text.startsWith('Pra você já conhecer um pouquinho'))
+}
+
+/** O bloco só entra no começo: ainda não foi e a Sofi mandou no máximo a saudação. */
+export function podeBloco(history: ChatMsg[]): boolean {
+  return !blocoJaEnviado(history) && history.filter(m => m.dir === 'out').length <= 1
+}
+
+/** Troca a marca pelo bloco (uma vez por conversa); marca fora de hora some. */
+export function aplicarBloco(parts: string[], history: ChatMsg[]): string[] {
+  let usado = !podeBloco(history)
+  const out: string[] = []
+  for (const p of parts) {
+    if (!p.includes(MARCA_BLOCO)) { out.push(p); continue }
+    const resto = p.split(MARCA_BLOCO).join('').trim()
+    if (!usado) { out.push(BLOCO_SPASSO); usado = true }
+    if (resto) out.push(resto)
+  }
+  return out
+}
+
+/** Sem travessão (pedido do dono, 24/11/2026): "—" e "–" viram vírgula. Hífen normal fica. */
+export function semTravessao(parts: string[]): string[] {
+  return parts.map(p => p.replace(/\s*[—–]\s*/g, ', ').replace(/,\s*([,.!?])/g, '$1').replace(/^,\s*/, ''))
 }

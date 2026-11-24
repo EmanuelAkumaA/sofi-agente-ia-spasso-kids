@@ -5,7 +5,23 @@ import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedo
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
 import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, prometePassar, saudacao, SAUDACAO, semEmoji } from '../lib/llm'
 import { ancoraDoFollow, planoFollow } from '../lib/follow'
-import { semEco } from '../lib/llm'
+import { semEco, aplicarBloco, BLOCO_SPASSO, MARCA_BLOCO, semTravessao } from '../lib/llm'
+
+// sem travessão (24/11/2026)
+assert.deepStrictEqual(semTravessao(['A melhor forma é vir fazer uma visita com degustação — tenho certeza de que vocês vão se encantar.']),
+  ['A melhor forma é vir fazer uma visita com degustação, tenho certeza de que vocês vão se encantar.'])
+assert.deepStrictEqual(semTravessao(['Tatuapé – SP.', 'Pré-venda e bem-vinda']), ['Tatuapé, SP.', 'Pré-venda e bem-vinda'])
+
+// bloco fixo de apresentação (opção A, 24/11/2026)
+{
+  const h1 = [{ id: 'a', dir: 'in' as const, text: 'quero orçamento', ts: 1 }]
+  assert.deepStrictEqual(aplicarBloco(['Oi! Eu sou a Sofi', MARCA_BLOCO, 'Qual a data?'], h1), ['Oi! Eu sou a Sofi', BLOCO_SPASSO, 'Qual a data?'])
+  assert.deepStrictEqual(aplicarBloco([`${MARCA_BLOCO} Qual a data?`], h1), [BLOCO_SPASSO, 'Qual a data?'])
+  const jaFoi = [...h1, { id: 'b', dir: 'out' as const, text: BLOCO_SPASSO, ts: 2 }]
+  assert.deepStrictEqual(aplicarBloco([MARCA_BLOCO, 'Qual a data?'], jaFoi), ['Qual a data?'], 'não repete')
+  const andou = [...h1, { id: 'b', dir: 'out' as const, text: 'x', ts: 2 }, { id: 'c', dir: 'out' as const, text: 'y', ts: 3 }]
+  assert.deepStrictEqual(aplicarBloco([MARCA_BLOCO, 'Ok?'], andou), ['Ok?'], 'conversa já andou: marca some')
+}
 
 // sem papagaio e sem "Anotei" (casos reais de 24/11/2026)
 {
