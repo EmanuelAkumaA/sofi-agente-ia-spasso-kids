@@ -22,6 +22,13 @@ Depois: com as respostas 1 a 3 já passa (currículo opcional, oferecido na mens
 
 **2026-11-24 (trava de passagem):** se a resposta final promete passar (`prometePassar()` em `lib/llm.ts`: "vou passar/repassar/encaminhar", "a vendedora continua"…, só em resposta SEM pergunta) e `passar_para_vendedora` não foi chamada, o modelo recebe uma cobrança (1 vez) para chamar a ferramenta com o motivo certo ou reescrever sem prometer. Nasceu do cenário pix, que oscilou. Evals 22/22.
 
+**2026-11-24 (follow-up da Triagem, base: skill followup-ia-metrik adaptada ao Kommo):** etapas **FOLLOW 1 · 3H** (114485104), **FOLLOW 2 · 24H** (114485108), **FOLLOW 3 · 72H** (114485112) depois de SOFI ATENDENDO.
+- Varredura `/api/follow` agendada no QStash a cada 20 min (schedule `scd_5AnFL2ez4s5GKLhZMr7xA6D4cf3r`); só roda em horário comercial (seg–sex 10h–18h, sáb 10h–12h) e envia só com `FOLLOW_SEND=1` (`?dry=1` = só o plano). Até 5 envios por rodada.
+- Regra em `lib/follow.ts` (testada no test-unit): âncora = 1ª fala da Sofi depois da última fala do cliente (os toques não deslocam); toques em 3/24/72 h; atrasado manda só o mais recente; esgotou + 96 h → **SEM RESPOSTA** com nota. `FOLLOW_DESDE` (2026-11-24T02:51Z) congela o backlog. Estado em `sofi:follow:<lead>`.
+- O toque é escrito pela Sofi em **modo follow** (conversa até a última fala dela, sem ferramentas, sem emoji, sem se apresentar): `instrucaoDoToque()`.
+- Cliente respondeu: o card volta para SOFI ATENDENDO e a cadência recomeça na próxima parada. Lead esperando currículo fica fora.
+- Desligar: `FOLLOW_SEND` fora + redeploy, ou apagar o schedule no QStash. Evals 24/24.
+
 Estado em 2026-11-20: **em teste pelo número da Kuma** (TRANSPORT=uazapi com a instância do Ítalo SDR). O SDR repassa para `/api/uazapi` só os números de `SOFI_TESTE_NUMEROS` (no SDR); a Sofi confere `TESTE_NUMEROS` na entrada, no atendimento e no envio (vazio = ninguém, `todos` = todos). Para desligar o teste: apagar `SOFI_TESTE_NUMEROS`/`SOFI_URL` no SDR e redeploy; na Sofi, `TRANSPORT=dry`.
 
 ## Onde está
