@@ -3,7 +3,7 @@ import assert from 'assert'
 import { camposDosDados } from '../lib/tools'
 import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedora, etapaDoMotivo } from '../lib/crm-map'
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
-import { garantirSaudacao, primeiroNome, saudacao, SAUDACAO } from '../lib/llm'
+import { garantirAvisoForaDoHorario, garantirSaudacao, primeiroNome, saudacao, SAUDACAO } from '../lib/llm'
 import { dadosDoCard, gateDoLead } from '../lib/agent'
 
 const F = CRM_MAP.fields
@@ -61,6 +61,16 @@ assert.strictEqual(saudacao('mayara silva'), 'Oi, Mayara! Eu sou a Sofi da Spass
 assert.strictEqual(saudacao('~ May 🌸'), SAUDACAO)
 assert.strictEqual(primeiroNome('TESTE SOFI - 1234'), null)
 assert.strictEqual(primeiroNome('5511999999999'), null)
+
+// aviso de fora do horário na passagem (sáb 21/11 15h → segunda)
+const sab = brt('2026-11-21T15:00:00')
+const av = garantirAvisoForaDoHorario(['Perfeito! Vou passar para a vendedora, que já chama você por aqui.'], 'Qualificado', sab)
+assert.strictEqual(av.length, 2)
+assert.ok(!/já chama/.test(av[0]) && /segunda-feira a partir das 10h/.test(av[1]))
+assert.deepStrictEqual(garantirAvisoForaDoHorario(['Ela chama você segunda às 10h.'], 'Qualificado', sab), ['Ela chama você segunda às 10h.'])
+assert.deepStrictEqual(garantirAvisoForaDoHorario(['Obrigada!'], 'Currículo / vaga', sab), ['Obrigada!'])
+assert.deepStrictEqual(garantirAvisoForaDoHorario(['Ok'], 'Qualificado', brt('2026-11-20T11:00:00')), ['Ok'])
+assert.deepStrictEqual(garantirAvisoForaDoHorario(['Ok'], '', sab), ['Ok'])
 
 // gate (fail-closed)
 const base = { id: 1, pipeline_id: CRM_MAP.pipelineId, status_id: CRM_MAP.stages.atendendo.id, _embedded: { tags: [{ id: 1, name: 'Sofi' }] } }

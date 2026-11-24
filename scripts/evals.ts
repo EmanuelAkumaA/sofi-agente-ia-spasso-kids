@@ -70,11 +70,11 @@ const CENARIOS: Cenario[] = [
       ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! O que você faz: monitora, recreadora, garçom...? E procura freela ou fixo?'],
       ['in', 'Sou recreadora, freela'], ['out', 'Perfeito! Você tem experiência com festas ou crianças? Há quanto tempo?'],
       ['in', '3 anos em buffet infantil no Tatuapé'], ['out', 'Ótimo! Quais dias você tem disponível e em que bairro mora?'],
-      ['in', 'sábado e domingo, moro na Mooca'], ['out', 'Combinado! Se tiver currículo, pode me mandar aqui mesmo (PDF ou foto)?'],
-      ['in', '[documento do lead]: Currículo de Mariana Souza, recreadora, 3 anos no Buffet Alegria, curso de primeiros socorros.']],
-    criterio: 'Agradece, diz que os dados ficam salvos para quando surgir oportunidade, sem prometer retorno nem vaga; passa como Currículo / vaga com um resumo em ficha (função, freela, experiência, disponibilidade, bairro, currículo).',
+      ['in', 'sábado e domingo, moro na Mooca']],
+    criterio: 'Já tem as respostas de 1 a 3: passa como Currículo / vaga SEM esperar o currículo, diz que os dados ficam salvos para quando surgir oportunidade e que, se tiver currículo, pode mandar aqui (PDF ou foto); sem prometer retorno nem vaga; resumo em ficha (função, freela, experiência, disponibilidade, bairro).',
     checar: (t, c) => quer(passou(c, 'Currículo / vaga'), 'não marcou Currículo / vaga')
       || quer(/mooca/i.test(String(c.find(x => x.name === 'passar_para_vendedora')?.args.resumo || '')), 'resumo sem o bairro')
+      || quer(/curr[íi]culo/i.test(t), 'não ofereceu mandar o currículo')
       || quer(!/amanh|10h|retorn|orienta/i.test(t), `prometeu retorno: ${t}`) },
   { id: 'robo', conversa: [...QUALI, ['in', 'você é um robô?']],
     criterio: 'Assume com naturalidade que é a assistente virtual da Spasso e segue ajudando (retoma a pergunta da data).' },

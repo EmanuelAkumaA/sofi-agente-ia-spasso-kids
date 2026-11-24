@@ -38,7 +38,12 @@ export function linhaDeAgora(ms = Date.now()): string {
   const hh = String(d.getUTCHours()).padStart(2, '0'), mi = String(d.getUTCMinutes()).padStart(2, '0')
   const base = `Agora: ${DIAS[d.getUTCDay()]}, ${dd}/${mm}/${d.getUTCFullYear()} ${hh}:${mi} (Brasília).`
   if (dentroDoHorario(ms)) return `${base} A equipe está em horário de atendimento.`
-  const ab = local(proximaAbertura(ms))
-  const quando = ab.getUTCDate() === d.getUTCDate() ? 'hoje' : (ab.getTime() - d.getTime() < 2 * 86400_000 && ab.getUTCDay() === (d.getUTCDay() + 1) % 7 ? 'amanhã' : DIAS[ab.getUTCDay()])
-  return `${base} FORA do horário de atendimento: a equipe volta ${quando} às 10h.`
+  return `${base} FORA do horário de atendimento: a equipe volta ${quandoVolta(ms)} às 10h.`
+}
+
+/** Quando a equipe volta: "hoje", "amanhã" ou o dia da semana. */
+export function quandoVolta(ms = Date.now()): string {
+  const d = local(ms), ab = local(proximaAbertura(ms))
+  if (ab.getUTCDate() === d.getUTCDate()) return 'hoje'
+  return ab.getTime() - d.getTime() < 2 * 86400_000 && ab.getUTCDay() === (d.getUTCDay() + 1) % 7 ? 'amanhã' : DIAS[ab.getUTCDay()]
 }

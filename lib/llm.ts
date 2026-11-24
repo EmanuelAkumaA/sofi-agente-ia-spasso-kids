@@ -5,7 +5,7 @@ import crypto from 'crypto'
 import { CONFIG } from './config'
 import type { ChatMsg } from './history'
 import { TOOLS, runTool, type ToolCtx } from './tools'
-import { linhaDeAgora } from './horario'
+import { dentroDoHorario, linhaDeAgora, quandoVolta } from './horario'
 import { emptyUsage, mergeUsage, usageFromResponse, type TokenUsage } from './cost'
 
 /**
@@ -83,6 +83,7 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
   const toolsUsed: string[] = []
   let usage = emptyUsage()
   let handoff = false
+  let motivoPassagem = ''
   let previousId: string | undefined
   let lastPartial = ''
 
@@ -112,7 +113,7 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
         try { args = JSON.parse(call.arguments || '{}') } catch { /* runTool devolve erro útil */ }
         toolsUsed.push(call.name)
         const out = await runTool(leadId, call.name, args, toolCtx)
-        if (out.handoff) handoff = true
+        if (out.handoff) { handoff = true; motivoPassagem = String(args.motivo || '') }
         if (out.isError) console.error(`[tool:${call.name}] lead ${leadId}: ${out.content}`)
         next.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify({ ok: !out.isError, resultado: out.content }) })
       }
@@ -125,7 +126,8 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
       input = [{ role: 'developer', content: 'Escreva agora a resposta para o cliente.' }]
       continue
     }
-    return { parts: garantirSaudacao(toParts(finalText), history, ctx.nome), toolsUsed, handoff, usage }
+    const parts = garantirAvisoForaDoHorario(garantirSaudacao(toParts(finalText), history, ctx.nome), motivoPassagem, ctx.agoraMs)
+    return { parts, toolsUsed, handoff, usage }
   }
   return null
 }
@@ -163,4 +165,19 @@ export function garantirSaudacao(parts: string[], history: ChatMsg[], nome?: str
   const n = primeiroNome(nome)
   const apresentacao = `${n ? `Oi, ${n}!` : 'Oii!'} Eu sou a Sofi da Spasso Kids${EMOJI.test(resto.join(' ')) ? '.' : ' 😊'}`
   return [apresentacao, ...resto].slice(0, 3)
+}
+
+/**
+ * Fora do horário, a passagem para a vendedora sempre avisa quando ela entra em contato
+ * (pedido do dono, 24/11/2026). Currículo e "Não é cliente" não ganham prazo.
+ */
+export function garantirAvisoForaDoHorario(parts: string[], motivo: string, ms = Date.now()): string[] {
+  if (!motivo || motivo === 'Currículo / vaga' || motivo === 'Não é cliente' || dentroDoHorario(ms) || !parts.length) return parts
+  const q = quandoVolta(ms)
+  // "já chama você" contradiz o aviso: tira o "já"
+  const out = parts.map(p => p.replace(/(?<![a-zà-ÿ])j[áa] (?=(?:te |você |vc )?(?:chama|entra|fala|retorna))/gi, ''))
+  const texto = out.join(' ')
+  if (new RegExp(q.split('-')[0], 'i').test(texto) && /10\s?h/i.test(texto)) return out
+  const aviso = `Como estamos fora do horário de atendimento, a vendedora entra em contato com você ${q} a partir das 10h, aqui mesmo no WhatsApp.`
+  return out.length < 3 ? [...out, aviso] : [...out.slice(0, -1), `${out[out.length - 1]} ${aviso}`]
 }
