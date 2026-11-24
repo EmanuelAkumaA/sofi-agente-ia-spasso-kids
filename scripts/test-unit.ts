@@ -3,7 +3,15 @@ import assert from 'assert'
 import { camposDosDados } from '../lib/tools'
 import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedora, etapaDoMotivo } from '../lib/crm-map'
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
-import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, saudacao, SAUDACAO } from '../lib/llm'
+import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, prometePassar, saudacao, SAUDACAO } from '../lib/llm'
+
+// trava do Pix (24/11/2026): prometeu passar sem chamar a ferramenta
+assert.ok(prometePassar('A vendedora vai te enviar os dados do pagamento. Vou passar seu atendimento para ela agora.'))
+assert.ok(prometePassar('Já repassei sua mensagem para a equipe.'))
+assert.ok(prometePassar('Claro, conversem com calma. A vendedora continua o atendimento por aqui.'))
+assert.ok(!prometePassar('Assim que tiver a data, vou passar para a vendedora. Qual a data da festa?'))
+assert.ok(!prometePassar('O valor depende da data e dos convidados, a vendedora monta a proposta. Já tem uma data em mente?'))
+assert.ok(!prometePassar('Claro, fico no aguardo 😊'))
 import { dadosDoCard, gateDoLead } from '../lib/agent'
 
 const F = CRM_MAP.fields

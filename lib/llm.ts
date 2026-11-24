@@ -89,6 +89,7 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
   let usage = emptyUsage()
   let handoff = false
   let motivoPassagem = ''
+  let cobrouPassagem = false
   let previousId: string | undefined
   let lastPartial = ''
 
@@ -131,6 +132,12 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
       input = [{ role: 'developer', content: 'Escreva agora a resposta para o cliente.' }]
       continue
     }
+    // Trava (24/11/2026): disse que passa para a vendedora mas não chamou a ferramenta → o card ficaria parado.
+    if (!final && !cobrouPassagem && !handoff && !toolsUsed.includes('aguardar_curriculo') && prometePassar(finalText)) {
+      cobrouPassagem = true
+      input = [{ role: 'developer', content: 'Sua resposta diz que vai passar o atendimento, mas você NÃO chamou passar_para_vendedora. Se for mesmo passar, chame agora com o motivo certo e depois escreva a mensagem final. Se não for passar, reescreva a resposta sem dizer que vai passar.' }]
+      continue
+    }
     const comSaudacao = garantirSaudacao(toParts(finalText), history, ctx.nome)
     const parts = garantirAvisoForaDoHorario(naturalizar(comSaudacao, history, ctx.nome), motivoPassagem, ctx.agoraMs)
     return { parts, toolsUsed, handoff, usage }
@@ -141,6 +148,15 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
 const cap = (w: string) => w[0].toUpperCase() + w.slice(1).toLowerCase()
 // ponytail: lista curta de nomes que quase sempre vêm compostos; ampliar se aparecer outro
 const COMPOSTOS = /^(maria|ana|jo[ãa]o|pedro|lu[ií]s|luiz|jos[ée]|carlos|paulo)$/i
+
+/**
+ * A resposta promete passar o atendimento agora? Só conta resposta SEM pergunta: com pergunta,
+ * a conversa continua ("assim que tiver a data, passo para a vendedora. Qual a data?").
+ */
+export function prometePassar(texto: string): boolean {
+  if (texto.includes('?')) return false
+  return /(?:vou|já vou|vamos)\s+(?:te\s+)?(?:passar|repassar|encaminhar|transferir)|(?:passei|repassei|encaminhei|transferi)\s|a vendedora (?:já\s+)?(?:continua|segue|assume)/i.test(texto)
+}
 
 /** Primeiro nome do contato (ou "Maria Clara", "Ana Julia"), só se parecer nome de pessoa. */
 export function primeiroNome(nome?: string | null): string | null {
