@@ -77,6 +77,8 @@ function montarContexto(history: ChatMsg[], ctx: Contexto): string {
 export async function generateReply(leadId: number, history: ChatMsg[], ctx: Contexto, toolCtx: ToolCtx = {}): Promise<AgentReply | null> {
   const base = toInput(history)
   if (!base.length) return null
+  // contato sem nome no Kommo: usa o nome que o cliente disse na conversa
+  if (!primeiroNome(ctx.nome)) ctx = { ...ctx, nome: nomeDito(history) || ctx.nome }
 
   // contexto ANTES da última fala do cliente: o modelo responde à fala, não ao contexto
   let input: any[] = [...base.slice(0, -1), { role: 'developer', content: montarContexto(history, ctx) }, base[base.length - 1]]
@@ -126,17 +128,58 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
       input = [{ role: 'developer', content: 'Escreva agora a resposta para o cliente.' }]
       continue
     }
-    const parts = garantirAvisoForaDoHorario(garantirSaudacao(toParts(finalText), history, ctx.nome), motivoPassagem, ctx.agoraMs)
+    const comSaudacao = garantirSaudacao(toParts(finalText), history, ctx.nome)
+    const parts = garantirAvisoForaDoHorario(naturalizar(comSaudacao, history, ctx.nome), motivoPassagem, ctx.agoraMs)
     return { parts, toolsUsed, handoff, usage }
   }
   return null
 }
 
-/** Primeiro nome do contato, só se parecer nome de pessoa. */
+const cap = (w: string) => w[0].toUpperCase() + w.slice(1).toLowerCase()
+// ponytail: lista curta de nomes que quase sempre vêm compostos; ampliar se aparecer outro
+const COMPOSTOS = /^(maria|ana|jo[ãa]o|pedro|lu[ií]s|luiz|jos[ée]|carlos|paulo)$/i
+
+/** Primeiro nome do contato (ou "Maria Clara", "Ana Julia"), só se parecer nome de pessoa. */
 export function primeiroNome(nome?: string | null): string | null {
-  const w = String(nome || '').trim().split(/\s+/)[0] || ''
+  const ws = String(nome || '').trim().split(/\s+/)
+  const w = ws[0] || ''
   if (!/^[A-Za-zÀ-ÿ]{2,20}$/.test(w) || /^(teste|sofi|spasso|cliente|buffet)$/i.test(w)) return null
-  return w[0].toUpperCase() + w.slice(1).toLowerCase()
+  if (COMPOSTOS.test(w) && /^[A-Za-zÀ-ÿ]{2,20}$/.test(ws[1] || '') && !/^(d[aeo]s?|e)$/i.test(ws[1])) return `${cap(w)} ${cap(ws[1])}`
+  return cap(w)
+}
+
+/** Nome que o cliente disse na conversa ("meu nome é Maria Clara", "me chamo Ana"). */
+export function nomeDito(history: ChatMsg[]): string | null {
+  for (const m of history) {
+    if (m.dir !== 'in') continue
+    const r = /(?:meu nome [ée]|me chamo)\s+([A-ZÀ-Ýa-zà-ÿ]+(?:\s+[A-ZÀ-Ý][a-zà-ÿ]+)?)/i.exec(m.text)
+    if (r && primeiroNome(r[1])) return r[1]
+  }
+  return null
+}
+
+const ABERTURA_PRONTA = /^(?:perfeito|[óo]timo|excelente|maravilha|show|certo|entendi|combinado)(?![a-zà-ÿ])\s*[,!.]?\s*/i
+function tirarVocativo(p: string, n: string): string {
+  const e = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return p.replace(new RegExp(`,\\s*${e}(?=\\s*[!?.,])`, 'g'), '').replace(new RegExp(`^${e}\\s*[,!]\\s*`), '')
+}
+
+/**
+ * Conversa natural (pedido do dono, 24/11/2026): sem "Perfeito/Ótimo..." abrindo balão e
+ * sem o nome do cliente se ele já apareceu nesta resposta ou nas 2 últimas da Sofi.
+ */
+export function naturalizar(parts: string[], history: ChatMsg[], nome?: string | null): string[] {
+  const n = primeiroNome(nome)
+  let usado = !!n && history.filter(m => m.dir === 'out' && !m.text.startsWith('[equipe]')).slice(-2).some(m => m.text.includes(n))
+  const out: string[] = []
+  for (const original of parts) {
+    let p = n && usado ? tirarVocativo(original, n) : original
+    p = p.replace(ABERTURA_PRONTA, '')
+    p = p ? p[0].toUpperCase() + p.slice(1) : p
+    if (n && p.includes(n)) usado = true
+    if (p.trim()) out.push(p)
+  }
+  return out.length ? out : parts
 }
 
 /** Saudação da primeira fala: com o nome quando tiver (regra do dono, 23/11/2026). */

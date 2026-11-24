@@ -16,6 +16,8 @@
 **2026-11-24:** currículo ganhou **triagem** (prompt 8.1): agradece, pergunta função/serviço e freela ou fixo, experiência, disponibilidade + bairro e pede o currículo (PDF ou foto; o arquivo fica no chat do Kommo pelo Coex). Só então passa, com o resumo em ficha na nota. Fora do horário, na passagem, avisa que a vendedora entra em contato no horário de atendimento (dia e 10h). Evals 20 cenários (novo: `curriculo-completo`).
 Depois: com as respostas 1 a 3 já passa (currículo opcional, oferecido na mensagem final). Aviso de fora do horário na passagem garantido no código (`garantirAvisoForaDoHorario` em `lib/llm.ts`, usa `quandoVolta` de `lib/horario.ts`); currículo e não cliente ficam sem prazo. Evals 20/20.
 
+**2026-11-24 (tom):** `naturalizar()` em `lib/llm.ts` tira "Perfeito/Ótimo/Excelente/Maravilha/Show/Certo/Entendi/Combinado" do começo do balão e tira o nome do cliente se ele já apareceu nesta resposta ou nas 2 últimas da Sofi. `nomeDito()` pega o nome que o cliente escreveu ("meu nome é...") quando o contato não tem nome; `primeiroNome()` aceita compostos comuns (Maria Clara). Prompt: nome só na apresentação e no máximo mais 1 vez; sem narrar "vou anotar"; currículo de menor começa com `⚠️ Menor de idade (N anos)`. Evals 21 (checagem geral `VICIOS` em todos + `curriculo-menor-sem-repetir-nome`).
+
 Estado em 2026-11-20: **em teste pelo número da Kuma** (TRANSPORT=uazapi com a instância do Ítalo SDR). O SDR repassa para `/api/uazapi` só os números de `SOFI_TESTE_NUMEROS` (no SDR); a Sofi confere `TESTE_NUMEROS` na entrada, no atendimento e no envio (vazio = ninguém, `todos` = todos). Para desligar o teste: apagar `SOFI_TESTE_NUMEROS`/`SOFI_URL` no SDR e redeploy; na Sofi, `TRANSPORT=dry`.
 
 ## Onde está

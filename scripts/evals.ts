@@ -18,6 +18,12 @@ interface Cenario {
 const SEM_VALOR = (t: string) => (/R\$\s?(?!300\b|300,00)\d/.test(t) || /\d+\s?%/.test(t) ? 'falou valor ou percentual' : null)
 const passou = (calls: Call[], motivo: string) => calls.some(c => c.name === 'passar_para_vendedora' && c.args.motivo === motivo)
 const quer = (cond: boolean, msg: string) => (cond ? null : msg)
+// Vale para TODOS os cenários (pedido do dono, 24/11/2026): sem frase pronta abrindo balão e nome no máximo 1 vez.
+const VICIOS = (t: string) => {
+  const ab = t.split(/\n\s*\n/).find(p => /^(perfeito|[óo]timo|excelente|maravilha|show|certo|entendi|combinado)(?![a-zà-ÿ])/i.test(p.trim()))
+  if (ab) return `abriu com frase pronta: ${ab.slice(0, 40)}`
+  return (t.match(/Mariana/g) || []).length > 1 ? 'nome repetido na resposta' : null
+}
 const QUALI: Cenario['conversa'] = [
   ['in', 'oi'], ['out', saudacao('Mariana')],
   ['in', 'quero fazer o aniversário da minha filha'], ['out', 'Que delícia! 🥰 Já tem uma data em mente para a festa?'],
@@ -37,7 +43,7 @@ const CENARIOS: Cenario[] = [
     checar: (t, c) => SEM_VALOR(t) || quer(passou(c, 'Quer visita'), 'não passou como Quer visita') },
   { id: 'data-livre', conversa: [...QUALI, ['in', 'vocês têm o sábado 30/01 à noite livre?']],
     criterio: 'NÃO diz que a data está livre nem ocupada; diz que anota e que a vendedora confirma a disponibilidade. Pode seguir pedindo outro dado.',
-    checar: t => SEM_VALOR(t) || quer(!/(est[aá]|t[aá]) (livre|dispon[ií]vel)|temos (essa|a) data|n[aã]o temos/i.test(t), 'afirmou disponibilidade') },
+    checar: t => SEM_VALOR(t) || quer(!/(?<!se (?:a data |ela )?)(?<![a-zà-ÿ])(est[aá]|t[aá]) (livre|dispon[ií]vel)|temos (essa|a) data|n[aã]o temos/i.test(t), 'afirmou disponibilidade') },
   { id: 'crianca-paga', conversa: [...QUALI, ['in', 'criança de 5 anos paga?']],
     criterio: 'NÃO responde a regra de quem paga; diz que a vendedora explica as cortesias certinho. Pode seguir qualificando.',
     checar: t => SEM_VALOR(t) || quer(!/(n[aã]o paga|s[aã]o cortesia|at[eé] \d+ anos)/i.test(t), 'respondeu a regra de criança') },
@@ -76,6 +82,17 @@ const CENARIOS: Cenario[] = [
       || quer(/mooca/i.test(String(c.find(x => x.name === 'passar_para_vendedora')?.args.resumo || '')), 'resumo sem o bairro')
       || quer(/curr[íi]culo/i.test(t), 'não ofereceu mandar o currículo')
       || quer(!/amanh|10h|retorn|orienta/i.test(t), `prometeu retorno: ${t}`) },
+  { id: 'curriculo-menor-sem-repetir-nome', agora: '2026-11-23T22:31:00', conversa: [
+      ['in', 'Olá! Meu nome é Mariana, tenho 16 anos e quero trabalhar como freelancer na recepção de festas, aos finais de semana.'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! Você já tem experiência com festas, eventos ou crianças?'],
+      ['in', 'Tenho experiência com público, mas não com crianças. Me dou bem com elas'],
+      ['out', 'Experiência com público ajuda bastante nas festas. Em qual bairro você mora, Mariana?'],
+      ['in', 'Vila Maria, Zona Norte']],
+    criterio: 'Já tem função, experiência, disponibilidade e bairro: passa como Currículo / vaga e oferece mandar o currículo se tiver. Tom natural: NÃO usa o nome de novo (acabou de usar), não abre com "Perfeito/Ótimo", não narra "vou anotar". A ficha do resumo começa avisando que é menor de idade (16 anos).',
+    checar: (t, c) => quer(passou(c, 'Currículo / vaga'), 'não marcou Currículo / vaga')
+      || quer(/menor de idade/i.test(String(c.find(x => x.name === 'passar_para_vendedora')?.args.resumo || '')), 'ficha sem o aviso de menor de idade')
+      || quer(!/Mariana/.test(t), `repetiu o nome: ${t}`)
+      || quer(!/vou anotar|anotei|registrei/i.test(t), `narrou: ${t}`) },
   { id: 'robo', conversa: [...QUALI, ['in', 'você é um robô?']],
     criterio: 'Assume com naturalidade que é a assistente virtual da Spasso e segue ajudando (retoma a pergunta da data).' },
   { id: 'fora-do-horario', agora: '2026-11-21T15:00:00', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Você já conhece nosso espaço pessoalmente?'], ['in', 'conheço sim, já fui numa festa aí']],
@@ -111,7 +128,7 @@ async function rodar(c: Cenario) {
   const calls: Call[] = []
   const r = await generateReply(0, history, { nome: 'Mariana', dadosDoCard: c.dados, agoraMs: base }, { dryRun: true, calls })
   const texto = r ? r.parts.join('\n\n') : '(sem resposta)'
-  const erro = c.checar?.(texto, calls) || null
+  const erro = VICIOS(texto) || c.checar?.(texto, calls) || null
   const j = await julgar(c, texto, calls)
   const ok = !erro && j.nota >= 7
   return { id: c.id, ok, nota: j.nota, erro, motivo: j.motivo, texto, tools: calls.map(x => `${x.name}${x.args.motivo ? `(${x.args.motivo})` : ''}`) }

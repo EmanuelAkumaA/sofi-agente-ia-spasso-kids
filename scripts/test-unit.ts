@@ -3,7 +3,7 @@ import assert from 'assert'
 import { camposDosDados } from '../lib/tools'
 import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedora, etapaDoMotivo } from '../lib/crm-map'
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
-import { garantirAvisoForaDoHorario, garantirSaudacao, primeiroNome, saudacao, SAUDACAO } from '../lib/llm'
+import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, saudacao, SAUDACAO } from '../lib/llm'
 import { dadosDoCard, gateDoLead } from '../lib/agent'
 
 const F = CRM_MAP.fields
@@ -61,6 +61,23 @@ assert.strictEqual(saudacao('mayara silva'), 'Oi, Mayara! Eu sou a Sofi da Spass
 assert.strictEqual(saudacao('~ May 🌸'), SAUDACAO)
 assert.strictEqual(primeiroNome('TESTE SOFI - 1234'), null)
 assert.strictEqual(primeiroNome('5511999999999'), null)
+
+// nome com moderação e sem "Perfeito" (caso Maria Clara, 24/11/2026)
+const mc = [{ id: 'a', dir: 'in' as const, text: 'Olá! Meu nome é Maria Clara, tenho 16 anos', ts: 1 }]
+assert.strictEqual(nomeDito(mc), 'Maria Clara')
+assert.strictEqual(primeiroNome('Maria Clara Pontes'), 'Maria Clara')
+assert.strictEqual(primeiroNome('Maria da Silva'), 'Maria')
+assert.deepStrictEqual(garantirSaudacao(['Obrigada pelo interesse em trabalhar com a Spasso, Maria Clara! Você tem experiência?'], mc, 'Maria Clara')[0], 'Oi, Maria Clara! Eu sou a Sofi da Spasso Kids 😊')
+assert.deepStrictEqual(
+  naturalizar(['Oi, Maria Clara! Eu sou a Sofi da Spasso Kids 😊', 'Obrigada pelo interesse em trabalhar com a Spasso, Maria Clara! Você tem experiência?'], mc, 'Maria Clara'),
+  ['Oi, Maria Clara! Eu sou a Sofi da Spasso Kids 😊', 'Obrigada pelo interesse em trabalhar com a Spasso! Você tem experiência?'])
+const meio = [...mc, { id: 'b', dir: 'out' as const, text: 'Você tem experiência, Maria Clara?', ts: 2 }, { id: 'c', dir: 'in' as const, text: 'tenho', ts: 3 }]
+assert.deepStrictEqual(naturalizar(['Perfeito, Maria Clara! Vou anotar. Em qual bairro você mora?'], meio, 'Maria Clara'), ['Vou anotar. Em qual bairro você mora?'])
+assert.deepStrictEqual(naturalizar(['Ótimo! Em qual bairro?'], meio, null), ['Em qual bairro?'])
+assert.deepStrictEqual(naturalizar(['Certinho, qual bairro?'], meio, null), ['Certinho, qual bairro?'])
+// nome volta a valer depois de 2 respostas sem ele (despedida)
+const longe = [...meio, { id: 'd', dir: 'out' as const, text: 'Qual bairro?', ts: 4 }, { id: 'e', dir: 'out' as const, text: 'Pode mandar o currículo?', ts: 5 }]
+assert.deepStrictEqual(naturalizar(['Obrigada, Maria Clara! Fica salvo.'], longe, 'Maria Clara'), ['Obrigada, Maria Clara! Fica salvo.'])
 
 // aviso de fora do horário na passagem (sáb 21/11 15h → segunda)
 const sab = brt('2026-11-21T15:00:00')
