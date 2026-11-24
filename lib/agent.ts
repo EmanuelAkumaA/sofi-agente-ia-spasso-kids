@@ -91,11 +91,12 @@ export async function processLead(leadId: number, webhookId: string, esperaSegun
         await logExec({ ts: new Date().toISOString(), leadId, resultado: 'erro', detalhe: 'modelo não devolveu texto', duracaoMs: Date.now() - t0, tools: [] })
         return false
       }
-      // Chegou mensagem nova enquanto gerava e ela ainda não mexeu no CRM: refaz com a conversa completa.
       const tokenDepois = await currentToken(leadId)
       // ordem do sistema (follow) e o cliente escreveu no meio: descarta, a resposta normal cuida dele
       if (instrucao && tokenDepois && tokenDepois !== tokenAntes) return false
-      if (tokenDepois && tokenDepois !== tokenAntes && !reply.toolsUsed.length && rodada === 0) {
+      // Chegou mensagem nova enquanto gerava: refaz com a conversa completa, se ela só gravou dados
+      // (regravar campo é inofensivo; passagem e espera de currículo não se desfazem).
+      if (tokenDepois && tokenDepois !== tokenAntes && reply.toolsUsed.every(t => t === 'registrar_dados') && rodada === 0) {
         await adoptToken(leadId, tokenDepois)
         continue
       }

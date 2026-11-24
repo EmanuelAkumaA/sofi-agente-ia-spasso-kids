@@ -73,3 +73,6 @@ e passa para a vendedora agendar. Exceção mantida do FAQ da cliente: cashback 
 4. Criar o webhook `add_message` apontando para `/api/inbound?secret=...` (via API).
 5. Teste E2E no número do dono, depois rampagem.
 Depois: follow-up (2 toques, dia seguinte), lembrete de visita, origem do lead, relatório no grupo, envio de materiais.
+
+**2026-11-24 (análise dos 10 primeiros leads reais):** corrigido: papagaio e "Anotei" (prompt + `semEco()` em `lib/llm.ts`: tira "Anotei/Vou anotar/Registrei..." do começo do balão e a frase sem pergunta com 2+ números/nomes que o cliente acabou de mandar, se a resposta tem pergunta); mensagem nova no meio da resposta agora refaz também quando ela só gravou dados (`processLead`); nunca repetir pergunta, resposta vaga vale, não perguntar ano óbvio; visita convidada uma vez e, já qualificado pedindo orçamento, passa na hora como Qualificado; faixa de datas não vira `data_festa` (vai no resumo). Evals 28/28 (novos: sem-papagaio, orcamento-ja-qualificado, faixa-de-datas, ano-obvio).
+Conflito aberto (Kommo/vendedoras, não código): o robô de menu e a mensagem pronta "Seja bem-vinda… Sou a Naomy" ainda saem em cards da Sofi e a tiram do atendimento.

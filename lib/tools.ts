@@ -23,7 +23,7 @@ export const TOOLS = [
       type: 'object',
       properties: {
         tipo_evento: { type: 'string', enum: Object.keys(F.tipoEvento.enums) },
-        data_festa: { type: 'string', description: 'Data da festa em AAAA-MM-DD, só se o cliente disse dia, mês e ano (deduza o ano mais próximo no futuro se ele disse só dia e mês).' },
+        data_festa: { type: 'string', description: 'Data da festa em AAAA-MM-DD, só se o cliente cravou UM dia (deduza o ano mais próximo no futuro se ele disse só dia e mês). Faixa de dias ("22 a 24/01") ou só o mês NÃO é data: não mande este campo.' },
         periodo: { type: 'string', enum: Object.keys(F.periodo.enums) },
         convidados: { type: 'number', description: 'Número aproximado de convidados.' },
         aniversariante: { type: 'string', description: 'Nome do aniversariante (ou homenageado).' },

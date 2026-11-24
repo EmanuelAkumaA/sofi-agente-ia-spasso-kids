@@ -145,7 +145,7 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
       input = [{ role: 'developer', content: 'Sua resposta diz que vai passar o atendimento, mas você NÃO chamou passar_para_vendedora. Se for mesmo passar, chame agora com o motivo certo e depois escreva a mensagem final. Se não for passar, reescreva a resposta sem dizer que vai passar.' }]
       continue
     }
-    const comSaudacao = garantirSaudacao(toParts(finalText), history, ctx.nome)
+    const comSaudacao = semEco(garantirSaudacao(toParts(finalText), history, ctx.nome), history)
     let parts = garantirAvisoForaDoHorario(naturalizar(comSaudacao, history, ctx.nome), motivoPassagem, ctx.agoraMs)
     if (ctx.semEmoji) parts = semEmoji(parts)
     return { parts, toolsUsed, handoff, usage }
@@ -256,4 +256,41 @@ export function garantirAvisoForaDoHorario(parts: string[], motivo: string, ms =
 export function semEmoji(parts: string[]): string[] {
   const out = parts.map(p => p.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/ {2,}/g, ' ').replace(/ ([.,!?])/g, '$1').trim()).filter(Boolean)
   return out.length ? out : parts
+}
+
+// "Anotei a data...", "Vou anotar...", "Registrei..." no começo do balão: narra o que ela faz por dentro.
+const NARRA = /^(?:vou anotar|anotei|anotado|registrei|deixei anotado)(?![a-zà-ÿ])[^.!?\n]*[.!]?\s*/i
+const PARADA = new Set(['Sim', 'Não', 'Nao', 'Oi', 'Oie', 'Olá', 'Ola', 'Bom', 'Boa', 'Para', 'Pode', 'Ainda', 'Isso', 'Tudo', 'Dia',
+  'Meu', 'Minha', 'Gostaria', 'Queria', 'Quero', 'Sou', 'Tenho', 'Obrigada', 'Obrigado', 'Então', 'Entao', 'Por', 'Vocês', 'Voces', 'Ele', 'Ela', 'Festa'])
+// frase com isto tem informação nova da Sofi, não é eco
+const TEM_CONTEUDO = /vendedora|valor|or[çc]amento|disponib|visita|degusta|cashback|cerveja|hor[áa]rio/i
+
+/** Números e nomes que o cliente acabou de mandar (as mensagens dele depois da última fala da Sofi). */
+function dadosDoCliente(h: ChatMsg[]): Set<string> {
+  const t = new Set<string>()
+  for (let i = h.length - 1; i >= 0 && h[i].dir === 'in'; i--) {
+    for (const n of h[i].text.match(/\d+/g) || []) t.add(n)
+    for (const w of h[i].text.match(/[A-ZÀ-Ý][a-zà-ÿ]{2,}/g) || []) if (!PARADA.has(w)) t.add(w)
+  }
+  return t
+}
+
+/**
+ * Sem papagaio (pedido do dono, 24/11/2026): tira "Anotei..." do começo do balão e a frase sem pergunta que só
+ * devolve 2+ dados que o cliente acabou de dar ("A Liz vai fazer 7 anos 🎉"). Só mexe se a resposta tem pergunta
+ * (a conversa segue) e nunca na apresentação.
+ * ponytail: heurística por número/nome repetido; se cortar frase boa, afinar TEM_CONTEUDO ou PARADA.
+ */
+export function semEco(parts: string[], history: ChatMsg[]): string[] {
+  if (!parts.some(p => p.includes('?'))) return parts
+  const dados = dadosDoCliente(history)
+  const eco = (f: string) => !f.includes('?') && f.length < 160 && !TEM_CONTEUDO.test(f)
+    && [...(f.match(/\d+/g) || []), ...(f.match(/[A-ZÀ-Ý][a-zà-ÿ]{2,}/g) || [])].filter(x => dados.has(x)).length >= 2
+  const out = parts.map(p => {
+    if (/sou a sofi/i.test(p)) return p
+    const frases = p.replace(NARRA, '').match(/[^.!?]+[.!?]*\s*/g) || []
+    const s = frases.filter(f => !eco(f)).join('').trim()
+    return s ? s[0].toUpperCase() + s.slice(1) : s
+  }).filter(Boolean)
+  return out.some(p => p.includes('?')) ? out : parts
 }

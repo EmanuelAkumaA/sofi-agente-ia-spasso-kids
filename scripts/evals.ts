@@ -118,6 +118,32 @@ const CENARIOS: Cenario[] = [
     checar: (t, c) => quer(!c.length, 'usou ferramenta no follow')
       || quer(!/\p{Extended_Pictographic}/u.test(t), 'emoji no follow')
       || quer(!/interesse|sou a sofi/i.test(t), `follow seco ou reapresentou: ${t}`) },
+  { id: 'sem-papagaio', conversa: [
+      ['in', 'Ooi bom dia! Gostaria de saber o valor para o dia 12/01/2027 para 80 convidados, jantar'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'O valor depende da data, do dia da semana e dos convidados; a vendedora monta a proposta. Qual o nome e a idade do aniversariante?'],
+      ['in', 'Liz, vai fazer 7 anos']],
+    criterio: 'Segue direto para "Você já conhece nosso espaço pessoalmente?" SEM repetir os dados ("A Liz vai fazer 7 anos") e sem dizer "anotei". Pode ter uma reação curta.',
+    checar: t => quer(!/vai fazer 7|anot|registr/i.test(t), `papagaio ou narração: ${t}`) || quer(/conhece/i.test(t), 'não perguntou se conhece o espaço') },
+  { id: 'orcamento-ja-qualificado', conversa: [
+      ['in', 'Oi! Me interessei pelo buffet e queria saber como funciona o orçamento.'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'O orçamento depende da data, do dia da semana e dos convidados. Qual a data que você tem em mente?'],
+      ['in', '9 de janeiro uns 200 convidados'], ['out', 'Qual o nome e a idade do aniversariante?'],
+      ['in', 'Liz 2 anos'], ['out', 'Você já conhece nosso espaço pessoalmente?'], ['in', 'Ainda não'],
+      ['out', 'A melhor forma de conhecer tudo é vir fazer uma visita com degustação. Qual dia e período ficam melhores para você?'],
+      ['in', 'Vc poderia passar o orçamento']],
+    criterio: 'Já tem os 3 dados e já convidou para a visita: passa na hora como Qualificado e diz que a vendedora envia o orçamento por aqui. NÃO insiste na visita, não fala valor.',
+    checar: (t, c) => SEM_VALOR(t) || quer(passou(c, 'Qualificado') || passou(c, 'Desconto / negociação'), 'não passou para a vendedora')
+      || quer(!/qual dia|per[íi]odo/i.test(t), `insistiu na visita: ${t}`) },
+  { id: 'faixa-de-datas', conversa: [...QUALI, ['in', 'Do dia 22 ao 24/01, para 50 convidados']],
+    criterio: 'A data é uma faixa: não grava data_festa como um dia só, registra os 50 convidados e NÃO pergunta os convidados de novo; segue para o aniversariante.',
+    checar: (t, c) => quer(!c.some(x => x.name === 'registrar_dados' && x.args.data_festa), 'gravou a faixa como data única')
+      || quer(!/quantos convidados|n[úu]mero de convidados/i.test(t), `perguntou convidados de novo: ${t}`) },
+  { id: 'ano-obvio', agora: '2026-11-24T12:35:00', conversa: [
+      ['in', 'Oi'], ['out', saudacao('Mariana')], ['in', 'Queria um orçamento para 80 pessoas em maio'],
+      ['out', 'O valor depende da data e do dia da semana; a vendedora monta o orçamento. Qual dia de maio você está pensando?'],
+      ['in', 'Ainda não sei certinho, mas depois do dia 16']],
+    criterio: 'Aceita "depois do dia 16 de maio" (é maio de 2027, óbvio) sem perguntar o ano; segue para outro dado (aniversariante) ou pergunta se tem um dia preferido, uma pergunta só.',
+    checar: t => quer(!/2027\?|que ano|qual ano|de 2027 ou|seria em maio de/i.test(t), `perguntou o ano: ${t}`) },
   { id: 'robo', conversa: [...QUALI, ['in', 'você é um robô?']],
     criterio: 'Assume com naturalidade que é a assistente virtual da Spasso e segue ajudando (retoma a pergunta da data).' },
   { id: 'fora-do-horario', agora: '2026-11-21T15:00:00', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Você já conhece nosso espaço pessoalmente?'], ['in', 'conheço sim, já fui numa festa aí']],

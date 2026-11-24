@@ -5,6 +5,25 @@ import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedo
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
 import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, prometePassar, saudacao, SAUDACAO, semEmoji } from '../lib/llm'
 import { ancoraDoFollow, planoFollow } from '../lib/follow'
+import { semEco } from '../lib/llm'
+
+// sem papagaio e sem "Anotei" (casos reais de 24/11/2026)
+{
+  const cli = (t: string) => [{ id: 'x', dir: 'out' as const, text: 'Qual a idade?', ts: 1 }, { id: 'y', dir: 'in' as const, text: t, ts: 2 }]
+  assert.deepStrictEqual(semEco(['A Liz vai fazer 7 anos 🎉', 'Você já conhece nosso espaço pessoalmente?'], cli('Liz , vai fazer 7 anos')),
+    ['Você já conhece nosso espaço pessoalmente?'])
+  assert.deepStrictEqual(semEco(['A festa ficou para 10/01, com aproximadamente 50 a 70 convidados, para Samuel, Miguel e Gabriel. Qual idade cada um vai fazer?'],
+    cli('a festa é para 3 Samuel, Miguel e Gabriel, a data seria 10/01 e a quantidade 50 a 70 convidados')), ['Qual idade cada um vai fazer?'])
+  assert.deepStrictEqual(semEco(['Anotei a data de 9 de janeiro e aproximadamente 200 convidados 😊', 'Qual é o nome e a idade do aniversariante?'], cli('9 de janeiro uns 200 convidados')),
+    ['Qual é o nome e a idade do aniversariante?'])
+  assert.deepStrictEqual(semEco(['Anotei para domingo, 16 de maio de 2027, para 80 convidados. Qual é o nome?'], cli('No domingo')), ['Qual é o nome?'])
+  // frase com informação da Sofi fica
+  const preco = 'O valor depende da data e dos convidados; a vendedora confirma a disponibilidade de 12/01/2027. Qual o nome do aniversariante?'
+  assert.deepStrictEqual(semEco([preco], cli('valor para 12/01/2027, 80 convidados')), [preco])
+  // sem pergunta (passagem): não mexe
+  assert.deepStrictEqual(semEco(['A Liz vai fazer 7 anos 🎉'], cli('Liz , 7 anos')), ['A Liz vai fazer 7 anos 🎉'])
+  assert.deepStrictEqual(semEco(['Que delícia!', 'Quantos convidados?'], cli('dia 23/01')), ['Que delícia!', 'Quantos convidados?'])
+}
 
 // follow-up da Triagem (3 h, 24 h, 72 h; fecha em 96 h)
 {
