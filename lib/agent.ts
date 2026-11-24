@@ -48,12 +48,22 @@ export function dadosDoCard(lead: KommoLead): string {
   return out.join('; ')
 }
 
-/**
- * `instrucao`: ordem do sistema sem mensagem nova do cliente (ex.: finalizar o currículo que não chegou em 1 h).
- */
-export async function processLead(leadId: number, webhookId: string, esperaSegundos?: number, instrucao?: string): Promise<void> {
+export interface OpcoesTurno {
+  /** ordem do sistema sem mensagem nova do cliente (finalizar currículo, follow-up) */
+  instrucao?: string
+  /** se o modelo não passar o card, o código passa como Currículo / vaga */
+  garantirPassagem?: boolean
+  /** tira emoji da resposta (follow-up) */
+  semEmoji?: boolean
+  /** follow-up: conversa até a última fala da Sofi, sem ferramentas */
+  modoFollow?: boolean
+}
+
+/** Devolve true se a resposta saiu (ou foi gerada no modo teste). */
+export async function processLead(leadId: number, webhookId: string, esperaSegundos?: number, opts: OpcoesTurno = {}): Promise<boolean> {
+  const { instrucao } = opts
   const claim = await debounceAndClaim(leadId, webhookId, esperaSegundos)
-  if (!claim.proceed) return
+  if (!claim.proceed) return false
   const t0 = Date.now()
   try {
     for (let rodada = 0; rodada < 2; rodada++) {
@@ -61,35 +71,37 @@ export async function processLead(leadId: number, webhookId: string, esperaSegun
       const gate = gateDoLead(lead)
       if (!gate.ok) {
         await logExec({ ts: new Date().toISOString(), leadId, resultado: 'pulou', detalhe: `gate: ${gate.motivo}`, duracaoMs: Date.now() - t0, tools: [] })
-        return
+        return false
       }
       // Rampagem por número: com envio real ligado, só atende quem está na lista de teste.
       if (await pausaGeral()) {
         await logExec({ ts: new Date().toISOString(), leadId, resultado: 'pulou', detalhe: 'pausa geral (Central)', duracaoMs: Date.now() - t0, tools: [] })
-        return
+        return false
       }
       if (CONFIG.transport === 'uazapi' && !(await podeAtender(await getLeadPhone(lead)))) {
         await logExec({ ts: new Date().toISOString(), leadId, resultado: 'pulou', detalhe: 'número fora da lista de teste', duracaoMs: Date.now() - t0, tools: [] })
-        return
+        return false
       }
       const history = await getHistory(leadId)
-      if (!history.length || (!instrucao && history[history.length - 1].dir !== 'in')) return
+      if (!history.length || (!instrucao && history[history.length - 1].dir !== 'in')) return false
       const tokenAntes = await currentToken(leadId)
 
-      const reply = await generateReply(leadId, history, { nome: await getContactName(lead), dadosDoCard: dadosDoCard(lead), instrucao })
+      const reply = await generateReply(leadId, history, { nome: await getContactName(lead), dadosDoCard: dadosDoCard(lead), instrucao, semEmoji: opts.semEmoji, modoFollow: opts.modoFollow })
       if (!reply) {
         await logExec({ ts: new Date().toISOString(), leadId, resultado: 'erro', detalhe: 'modelo não devolveu texto', duracaoMs: Date.now() - t0, tools: [] })
-        return
+        return false
       }
       // Chegou mensagem nova enquanto gerava e ela ainda não mexeu no CRM: refaz com a conversa completa.
       const tokenDepois = await currentToken(leadId)
+      // ordem do sistema (follow) e o cliente escreveu no meio: descarta, a resposta normal cuida dele
+      if (instrucao && tokenDepois && tokenDepois !== tokenAntes) return false
       if (tokenDepois && tokenDepois !== tokenAntes && !reply.toolsUsed.length && rodada === 0) {
         await adoptToken(leadId, tokenDepois)
         continue
       }
 
       // finalização do currículo: se o modelo não passou o card, passa assim mesmo (o card não pode ficar parado)
-      if (instrucao && !reply.toolsUsed.includes('passar_para_vendedora')) {
+      if (opts.garantirPassagem && !reply.toolsUsed.includes('passar_para_vendedora')) {
         await runTool(leadId, 'passar_para_vendedora', { motivo: 'Currículo / vaga', resumo: 'Triagem de currículo: o currículo não chegou em 1 hora. Ver a conversa no card.' })
         reply.toolsUsed.push('passar_para_vendedora')
       }
@@ -101,13 +113,13 @@ export async function processLead(leadId: number, webhookId: string, esperaSegun
       await logExec({
         ts: new Date().toISOString(), leadId,
         resultado: envio.ok ? 'respondeu' : 'erro',
-        detalhe: envio.ok ? (envio.dry ? 'resposta gerada (modo teste: nada enviado)' : 'enviada') : `falha no envio: ${envio.erro}`,
+        detalhe: (instrucao ? `[${instrucao.slice(0, 30)}] ` : '') + (envio.ok ? (envio.dry ? 'resposta gerada (modo teste: nada enviado)' : 'enviada') : `falha no envio: ${envio.erro}`),
         duracaoMs: Date.now() - t0, tools: reply.toolsUsed,
         turnoLead: ultimaIn?.text.slice(0, 500), resposta: reply.parts,
         envio: envio.dry ? 'dry' : CONFIG.transport,
         custo: calculateExecutionCost({ usage: reply.usage }),
       })
-      return
+      return envio.ok
     }
   } catch (e) {
     console.error(`[agent] lead ${leadId}:`, e)
@@ -115,4 +127,5 @@ export async function processLead(leadId: number, webhookId: string, esperaSegun
   } finally {
     await releaseLock(leadId, claim.lockOwner)
   }
+  return false
 }

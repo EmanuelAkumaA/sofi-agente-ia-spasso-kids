@@ -5,7 +5,7 @@ import { CONFIG } from '../lib/config'
 import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, ehVendedora } from '../lib/crm-map'
 import { gateDoLead, processLead } from '../lib/agent'
 import { appendMessage, isEchoOfSent, seenMessage } from '../lib/history'
-import { addLeadNote, addLeadTags, createLeadWithContact, findOpenLeadByPhone, sleep, type KommoLead } from '../lib/kommo'
+import { addLeadNote, addLeadTags, createLeadWithContact, findOpenLeadByPhone, patchLead, sleep, type KommoLead } from '../lib/kommo'
 import { numeroLiberado } from '../lib/liberados'
 import { gravarInstancia } from '../lib/transport'
 import { secretOk, textoDaMensagem } from './inbound'
@@ -93,6 +93,9 @@ async function ingerir(m: Recebida, inst: string, daLista: boolean): Promise<voi
   }
   // Já está no funil de uma vendedora: é dela, a Sofi não entra.
   if (lead.pipeline_id !== CRM_MAP.pipelineId) return
+  // respondeu depois de um follow (ou do SEM RESPOSTA): o card volta para SOFI ATENDENDO
+  const S = CRM_MAP.stages
+  if (([S.follow1.id, S.follow2.id, S.follow3.id, S.semResposta.id] as number[]).includes(lead.status_id)) await patchLead(lead.id, { status_id: S.atendendo.id })
   await gravarInstancia(lead.id, inst)
   const link = m.tipo ? await urlDaMidia(m.id, inst) : ''
   const texto = await textoDaMensagem(m.texto, m.tipo, link)

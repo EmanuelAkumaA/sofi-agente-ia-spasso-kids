@@ -21,9 +21,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (Date.now() < prazo - 60_000) return res.status(200).json({ ok: true, ignorado: 'prazo renovado' })
   await redis.del(aguardaKey(leadId))
 
-  await processLead(leadId, crypto.randomUUID(), 0,
+  await processLead(leadId, crypto.randomUUID(), 0, { garantirPassagem: true, instrucao:
     'Passou 1 hora e o currículo não chegou. Finalize agora: use passar_para_vendedora com "Currículo / vaga" '
     + '(resumo em ficha; Currículo enviado: não) e escreva só uma despedida curta, sem pergunta: os dados ficam salvos '
-    + 'com a equipe e, se quiser, ainda pode mandar o currículo por aqui.')
+    + 'com a equipe e, se quiser, ainda pode mandar o currículo por aqui.' })
   return res.status(200).json({ ok: true })
 }

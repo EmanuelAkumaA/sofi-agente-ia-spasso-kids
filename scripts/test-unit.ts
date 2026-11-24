@@ -3,7 +3,31 @@ import assert from 'assert'
 import { camposDosDados } from '../lib/tools'
 import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedora, etapaDoMotivo } from '../lib/crm-map'
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
-import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, prometePassar, saudacao, SAUDACAO } from '../lib/llm'
+import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, prometePassar, saudacao, SAUDACAO, semEmoji } from '../lib/llm'
+import { ancoraDoFollow, planoFollow } from '../lib/follow'
+
+// follow-up da Triagem (3 h, 24 h, 72 h; fecha em 96 h)
+{
+  const H = 3_600_000, t = 1_000_000_000_000
+  const conv = [
+    { id: '1', dir: 'in' as const, text: 'quero orçamento', ts: t },
+    { id: '2', dir: 'out' as const, text: 'Qual a data?', ts: t + 1000 },
+    { id: '3', dir: 'out' as const, text: 'toque 1', ts: t + 4 * H },
+  ]
+  assert.strictEqual(ancoraDoFollow(conv), t + 1000, 'âncora = 1ª fala da Sofi depois do cliente; o toque não desloca')
+  assert.strictEqual(ancoraDoFollow([...conv, { id: '4', dir: 'in' as const, text: 'oi', ts: t + 5 * H }]), null, 'cliente falou por último')
+  const a = t + 1000
+  assert.deepStrictEqual(planoFollow(conv, null, a + 2 * H, 0), { acao: 'nada', motivo: 'ainda não venceu' })
+  assert.deepStrictEqual(planoFollow(conv, null, a + 3 * H, 0), { acao: 'enviar', toque: 1, ancora: a })
+  assert.deepStrictEqual(planoFollow(conv, { ancora: a, enviados: 1 }, a + 10 * H, 0), { acao: 'nada', motivo: 'ainda não venceu' })
+  assert.deepStrictEqual(planoFollow(conv, { ancora: a, enviados: 1 }, a + 24 * H, 0), { acao: 'enviar', toque: 2, ancora: a })
+  assert.deepStrictEqual(planoFollow(conv, null, a + 80 * H, 0), { acao: 'enviar', toque: 3, ancora: a }, 'atrasado: manda só o mais recente')
+  assert.deepStrictEqual(planoFollow(conv, { ancora: a, enviados: 3 }, a + 90 * H, 0), { acao: 'nada', motivo: 'esperando o fechamento' })
+  assert.deepStrictEqual(planoFollow(conv, { ancora: a, enviados: 3 }, a + 96 * H, 0), { acao: 'fechar', ancora: a })
+  assert.deepStrictEqual(planoFollow(conv, { ancora: a - 5, enviados: 3 }, a + 3 * H, 0), { acao: 'enviar', toque: 1, ancora: a }, 'âncora nova zera a cadência')
+  assert.deepStrictEqual(planoFollow(conv, null, a + 3 * H, a + 1), { acao: 'nada', motivo: 'backlog (antes da ativação)' })
+  assert.deepStrictEqual(semEmoji(['Fico no aguardo 😊', '🎉']), ['Fico no aguardo'])
+}
 
 // trava do Pix (24/11/2026): prometeu passar sem chamar a ferramenta
 assert.ok(prometePassar('A vendedora vai te enviar os dados do pagamento. Vou passar seu atendimento para ela agora.'))

@@ -8,6 +8,9 @@ export const CRM_MAP = {
   stages: {
     entrada: { id: 114390340, quando: 'lead acabou de chegar' },
     atendendo: { id: 114390344, quando: 'a Sofi está conversando e coletando os dados' },
+    follow1: { id: 114485104, quando: 'o cliente sumiu e recebeu o follow-up 1 (3 h)' },
+    follow2: { id: 114485108, quando: 'recebeu o follow-up 2 (24 h)' },
+    follow3: { id: 114485112, quando: 'recebeu o follow-up 3 (72 h); sem resposta em 96 h vai para SEM RESPOSTA' },
     qualificado: { id: 114390348, quando: 'tem data + convidados + aniversariante; vai para a vendedora' },
     querVisita: { id: 114390352, quando: 'cliente quer conhecer o espaço; a vendedora agenda a visita' },
     comVendedora: { id: 114390356, quando: 'passou para a vendedora por outro motivo (preço, desconto, pós-venda, reclamação, pediu atendente...)' },

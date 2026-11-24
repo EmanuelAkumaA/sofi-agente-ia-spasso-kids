@@ -28,6 +28,10 @@ export interface Contexto {
   agoraMs?: number
   /** ordem do sistema para este turno (não é fala do cliente) */
   instrucao?: string
+  /** tira emoji da resposta (follow-up: a regra está no código, não só no prompt) */
+  semEmoji?: boolean
+  /** follow-up: a conversa vai até a última fala da Sofi e o modelo não tem ferramentas */
+  modoFollow?: boolean
 }
 
 export interface AgentReply {
@@ -37,7 +41,7 @@ export interface AgentReply {
   usage: TokenUsage
 }
 
-function toInput(msgs: ChatMsg[]): Array<{ role: 'user' | 'assistant'; content: string }> {
+function toInput(msgs: ChatMsg[], manterFimDaSofi = false): Array<{ role: 'user' | 'assistant'; content: string }> {
   const turns: Array<{ role: 'user' | 'assistant'; content: string }> = []
   for (const m of msgs) {
     const role = m.dir === 'in' ? 'user' : 'assistant'
@@ -48,7 +52,7 @@ function toInput(msgs: ChatMsg[]): Array<{ role: 'user' | 'assistant'; content: 
     else turns.push({ role, content: body })
   }
   while (turns.length && turns[0].role !== 'user') turns.shift()
-  while (turns.length && turns[turns.length - 1].role !== 'user') turns.pop()
+  if (!manterFimDaSofi) while (turns.length && turns[turns.length - 1].role !== 'user') turns.pop()
   return turns
 }
 
@@ -78,13 +82,16 @@ function montarContexto(history: ChatMsg[], ctx: Contexto): string {
 }
 
 export async function generateReply(leadId: number, history: ChatMsg[], ctx: Contexto, toolCtx: ToolCtx = {}): Promise<AgentReply | null> {
-  const base = toInput(history)
+  const base = toInput(history, !!ctx.modoFollow)
   if (!base.length) return null
   // contato sem nome no Kommo: usa o nome que o cliente disse na conversa
   if (!primeiroNome(ctx.nome)) ctx = { ...ctx, nome: nomeDito(history) || ctx.nome }
 
-  // contexto ANTES da última fala do cliente: o modelo responde à fala, não ao contexto
-  let input: any[] = [...base.slice(0, -1), { role: 'developer', content: montarContexto(history, ctx) }, base[base.length - 1]]
+  // contexto ANTES da última fala do cliente: o modelo responde à fala, não ao contexto.
+  // No follow, a conversa termina na Sofi e a ordem do sistema vem por último.
+  let input: any[] = ctx.modoFollow
+    ? [...base, { role: 'developer', content: montarContexto(history, ctx) }]
+    : [...base.slice(0, -1), { role: 'developer', content: montarContexto(history, ctx) }, base[base.length - 1]]
   const toolsUsed: string[] = []
   let usage = emptyUsage()
   let handoff = false
@@ -99,7 +106,7 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
       model: CONFIG.llmModel,
       instructions: PROMPT,
       input,
-      ...(final ? {} : { tools: TOOLS.map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.input_schema, strict: false })) }),
+      ...(final || ctx.modoFollow ? {} : { tools: TOOLS.map(t => ({ type: 'function', name: t.name, description: t.description, parameters: t.input_schema, strict: false })) }),
       reasoning: { effort: CONFIG.llmEffort },
       max_output_tokens: 3000,
       prompt_cache_key: CACHE_KEY,
@@ -133,13 +140,14 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
       continue
     }
     // Trava (24/11/2026): disse que passa para a vendedora mas não chamou a ferramenta → o card ficaria parado.
-    if (!final && !cobrouPassagem && !handoff && !toolsUsed.includes('aguardar_curriculo') && prometePassar(finalText)) {
+    if (!final && !ctx.modoFollow && !cobrouPassagem && !handoff && !toolsUsed.includes('aguardar_curriculo') && prometePassar(finalText)) {
       cobrouPassagem = true
       input = [{ role: 'developer', content: 'Sua resposta diz que vai passar o atendimento, mas você NÃO chamou passar_para_vendedora. Se for mesmo passar, chame agora com o motivo certo e depois escreva a mensagem final. Se não for passar, reescreva a resposta sem dizer que vai passar.' }]
       continue
     }
     const comSaudacao = garantirSaudacao(toParts(finalText), history, ctx.nome)
-    const parts = garantirAvisoForaDoHorario(naturalizar(comSaudacao, history, ctx.nome), motivoPassagem, ctx.agoraMs)
+    let parts = garantirAvisoForaDoHorario(naturalizar(comSaudacao, history, ctx.nome), motivoPassagem, ctx.agoraMs)
+    if (ctx.semEmoji) parts = semEmoji(parts)
     return { parts, toolsUsed, handoff, usage }
   }
   return null
@@ -242,4 +250,10 @@ export function garantirAvisoForaDoHorario(parts: string[], motivo: string, ms =
   if (new RegExp(q.split('-')[0], 'i').test(texto) && /10\s?h/i.test(texto)) return out
   const aviso = `Como estamos fora do horário de atendimento, a vendedora entra em contato com você ${q} a partir das 10h, aqui mesmo no WhatsApp.`
   return out.length < 3 ? [...out, aviso] : [...out.slice(0, -1), `${out[out.length - 1]} ${aviso}`]
+}
+
+/** Tira emoji (e as "colas" de emoji composto); balão que ficar vazio sai. */
+export function semEmoji(parts: string[]): string[] {
+  const out = parts.map(p => p.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').replace(/ {2,}/g, ' ').replace(/ ([.,!?])/g, '$1').trim()).filter(Boolean)
+  return out.length ? out : parts
 }

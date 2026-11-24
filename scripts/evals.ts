@@ -2,6 +2,7 @@
 // Rodar: node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/evals.ts [filtro] [--vezes=N]
 import OpenAI from 'openai'
 import { generateReply, saudacao } from '../lib/llm'
+import { instrucaoDoToque } from '../lib/follow'
 import type { ChatMsg } from '../lib/history'
 import { CONFIG } from '../lib/config'
 
@@ -11,6 +12,7 @@ interface Cenario {
   conversa: Array<[ 'in' | 'out', string ]>
   agora?: string // ISO Brasília
   dados?: string
+  instrucao?: string // ordem do sistema (follow-up)
   criterio: string
   checar?: (texto: string, calls: Call[]) => string | null // devolve erro ou null
 }
@@ -102,6 +104,20 @@ const CENARIOS: Cenario[] = [
     checar: (t, c) => quer(c.some(x => x.name === 'aguardar_curriculo'), 'não usou aguardar_curriculo')
       || quer(!c.some(x => x.name === 'passar_para_vendedora'), 'passou sem esperar o currículo')
       || quer(!/\?/.test(t), `fez pergunta: ${t}`) },
+  { id: 'follow-1', agora: '2026-11-24T14:00:00', instrucao: instrucaoDoToque(1),
+    conversa: [...QUALI, ['in', 'dia 23/01/2027'], ['out', 'Anotado! E quantos convidados vocês imaginam, mais ou menos?']],
+    criterio: 'Follow-up 1: lembrete curto e leve que retoma a pergunta dos convidados, sem se apresentar, sem "oi", sem pressão, sem "ainda tem interesse", sem emoji, sem ferramenta.',
+    checar: (t, c) => quer(!c.length, 'usou ferramenta no follow')
+      || quer(!/\p{Extended_Pictographic}/u.test(t), 'emoji no follow')
+      || quer(!/interesse|sou a sofi|^oi/i.test(t.trim()), `follow seco ou reapresentou: ${t}`)
+      || quer(/convidad/i.test(t), 'não retomou a pergunta pendente') },
+  { id: 'follow-3', agora: '2026-11-27T14:00:00', instrucao: instrucaoDoToque(3),
+    conversa: [...QUALI, ['in', 'dia 23/01/2027'], ['out', 'Anotado! E quantos convidados vocês imaginam, mais ou menos?'],
+      ['out', 'Fico no aguardo de quantos convidados vocês imaginam, assim já adianto tudo.'], ['out', 'A visita com degustação ajuda bastante a decidir. Me conta quantos convidados vocês pensam em chamar?']],
+    criterio: 'Último follow-up: curto, gentil, deixa a porta aberta para retomar quando quiser, sem repetir as frases anteriores, sem pressão, sem emoji, sem ferramenta.',
+    checar: (t, c) => quer(!c.length, 'usou ferramenta no follow')
+      || quer(!/\p{Extended_Pictographic}/u.test(t), 'emoji no follow')
+      || quer(!/interesse|sou a sofi/i.test(t), `follow seco ou reapresentou: ${t}`) },
   { id: 'robo', conversa: [...QUALI, ['in', 'você é um robô?']],
     criterio: 'Assume com naturalidade que é a assistente virtual da Spasso e segue ajudando (retoma a pergunta da data).' },
   { id: 'fora-do-horario', agora: '2026-11-21T15:00:00', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Você já conhece nosso espaço pessoalmente?'], ['in', 'conheço sim, já fui numa festa aí']],
@@ -135,7 +151,7 @@ async function rodar(c: Cenario) {
   const base = c.agora ? Date.parse(c.agora + '-03:00') : Date.parse('2026-11-20T11:00:00-03:00')
   const history: ChatMsg[] = c.conversa.map(([dir, text], i) => ({ id: String(i), dir, text, ts: base - (c.conversa.length - i) * 60000 }))
   const calls: Call[] = []
-  const r = await generateReply(0, history, { nome: 'Mariana', dadosDoCard: c.dados, agoraMs: base }, { dryRun: true, calls })
+  const r = await generateReply(0, history, { nome: 'Mariana', dadosDoCard: c.dados, agoraMs: base, instrucao: c.instrucao, semEmoji: !!c.instrucao, modoFollow: !!c.instrucao }, { dryRun: true, calls })
   const texto = r ? r.parts.join('\n\n') : '(sem resposta)'
   const erro = VICIOS(texto) || c.checar?.(texto, calls) || null
   const j = await julgar(c, texto, calls)

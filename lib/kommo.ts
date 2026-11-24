@@ -181,3 +181,16 @@ export async function createTestLead(name: string, pipelineId: number, statusId:
   if (!id) throw new Error('criação do lead de teste não devolveu id')
   return id
 }
+
+/** Leads abertos nas etapas indicadas (até 5 páginas de 250). O Kommo responde 204 quando não há nenhum. */
+export async function listLeadsPorEtapa(pipelineId: number, statusIds: number[]): Promise<KommoLead[]> {
+  const filtro = statusIds.map((s, i) => `filter[statuses][${i}][pipeline_id]=${pipelineId}&filter[statuses][${i}][status_id]=${s}`).join('&')
+  const out: KommoLead[] = []
+  for (let page = 1; page <= 5; page++) {
+    const r = await kommo<{ _embedded?: { leads?: KommoLead[] } } | ''>('GET', `/api/v4/leads?${filtro}&limit=250&page=${page}`)
+    const leads = (r && typeof r === 'object' ? r._embedded?.leads : []) || []
+    out.push(...leads)
+    if (leads.length < 250) break
+  }
+  return out
+}
