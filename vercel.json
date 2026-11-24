@@ -4,6 +4,7 @@
     "api/inbound.ts": { "maxDuration": 120, "includeFiles": "prompt.md" },
     "api/teste.ts": { "maxDuration": 120, "includeFiles": "prompt.md" },
     "api/uazapi.ts": { "maxDuration": 120, "includeFiles": "prompt.md" },
+    "api/finalizar.ts": { "maxDuration": 120, "includeFiles": "prompt.md" },
     "api/kuma-central.ts": { "maxDuration": 30, "includeFiles": "prompt.md" }
   }
 }

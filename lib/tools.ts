@@ -3,6 +3,7 @@ import { CRM_MAP, destinoDaPassagem } from './crm-map'
 import { instanciaDoLead } from './transport'
 import { addLeadNote, addLeadTags, createTask, getLead, patchLead, type KommoFieldValue } from './kommo'
 import { proximoHorarioUtil } from './horario'
+import { redis } from './redis'
 
 /**
  * As mãos da Sofi no Kommo. Duas ferramentas, alçada curta:
@@ -48,7 +49,32 @@ export const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'aguardar_curriculo',
+    description: 'Use SÓ na triagem de currículo, quando a pessoa disser que vai mandar o currículo agora ("um momento", "vou pegar", "já te mando"). NÃO passe para a vendedora ainda: responda curto que fica no aguardo. Se o currículo não chegar em 1 hora, o sistema finaliza sozinho.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
 ]
+
+/** Prazo para o currículo chegar antes da Sofi finalizar sozinha (pedido do dono, 24/11/2026). */
+export const ESPERA_CURRICULO_MIN = 60
+export const aguardaKey = (leadId: number) => `sofi:aguarda:${leadId}`
+
+/** Agenda a chamada de /api/finalizar no QStash (o cron da Vercel só roda 1 vez por dia). */
+async function agendarFinalizacao(leadId: number): Promise<string | null> {
+  const token = process.env.QSTASH_TOKEN || '', self = (process.env.SELF_URL || '').replace(/\/+$/, '')
+  if (!token || !self) return 'falta QSTASH_TOKEN ou SELF_URL'
+  const base = (process.env.QSTASH_URL || 'https://qstash.upstash.io').replace(/\/+$/, '')
+  const res = await fetch(`${base}/v2/publish/${self}/api/finalizar`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`, 'Content-Type': 'application/json',
+      'Upstash-Delay': `${ESPERA_CURRICULO_MIN}m`, 'Upstash-Retries': '2', 'Upstash-Forward-x-webhook-secret': CONFIG.webhookSecret,
+    },
+    body: JSON.stringify({ leadId }),
+  })
+  return res.ok ? null : `qstash ${res.status}: ${(await res.text()).slice(0, 150)}`
+}
 
 export interface ToolOutcome { content: string; isError?: boolean; handoff?: boolean }
 export interface ToolCtx { dryRun?: boolean; calls?: Array<{ name: string; args: Record<string, unknown> }> }
@@ -115,6 +141,16 @@ export async function runTool(leadId: number, name: string, args: Record<string,
         await createTask({ leadId, text: `Sofi: ${motivo}. Retomar o cliente pelo WhatsApp.`, completeTill: proximoHorarioUtil(), responsibleUserId: destino.responsible_user_id ?? lead.responsible_user_id })
       }
       return { content: `passado para a vendedora (${motivo})`, handoff: true }
+    }
+    if (name === 'aguardar_curriculo') {
+      if (ctx.dryRun) return { content: `(teste) aguardando o currículo por ${ESPERA_CURRICULO_MIN} min` }
+      const lead = await getLead(leadId)
+      if (lead.pipeline_id !== CRM_MAP.pipelineId) return { content: 'lead fora do funil da Triagem', isError: true }
+      // o prazo mais recente vale: uma chamada antiga do QStash que chegar antes dele é ignorada
+      await redis.set(aguardaKey(leadId), String(Date.now() + ESPERA_CURRICULO_MIN * 60_000), { ex: 6 * 3600 })
+      const erro = await agendarFinalizacao(leadId)
+      if (erro) return { content: `não consegui agendar: ${erro}`, isError: true }
+      return { content: `aguardando o currículo; se não chegar em ${ESPERA_CURRICULO_MIN} min, a Sofi finaliza` }
     }
     return { content: `ferramenta desconhecida: ${name}`, isError: true }
   } catch (e) {

@@ -5,6 +5,7 @@ import { appendMessage, getHistory } from './history'
 import { getContactName, getLead, getLeadPhone, tagNames, type KommoLead } from './kommo'
 import { podeAtender, pausaGeral } from './liberados'
 import { generateReply } from './llm'
+import { runTool } from './tools'
 import { sendReply } from './transport'
 import { logExec } from './execlog'
 import { calculateExecutionCost } from './cost'
@@ -47,7 +48,10 @@ export function dadosDoCard(lead: KommoLead): string {
   return out.join('; ')
 }
 
-export async function processLead(leadId: number, webhookId: string, esperaSegundos?: number): Promise<void> {
+/**
+ * `instrucao`: ordem do sistema sem mensagem nova do cliente (ex.: finalizar o currículo que não chegou em 1 h).
+ */
+export async function processLead(leadId: number, webhookId: string, esperaSegundos?: number, instrucao?: string): Promise<void> {
   const claim = await debounceAndClaim(leadId, webhookId, esperaSegundos)
   if (!claim.proceed) return
   const t0 = Date.now()
@@ -69,10 +73,10 @@ export async function processLead(leadId: number, webhookId: string, esperaSegun
         return
       }
       const history = await getHistory(leadId)
-      if (!history.length || history[history.length - 1].dir !== 'in') return
+      if (!history.length || (!instrucao && history[history.length - 1].dir !== 'in')) return
       const tokenAntes = await currentToken(leadId)
 
-      const reply = await generateReply(leadId, history, { nome: await getContactName(lead), dadosDoCard: dadosDoCard(lead) })
+      const reply = await generateReply(leadId, history, { nome: await getContactName(lead), dadosDoCard: dadosDoCard(lead), instrucao })
       if (!reply) {
         await logExec({ ts: new Date().toISOString(), leadId, resultado: 'erro', detalhe: 'modelo não devolveu texto', duracaoMs: Date.now() - t0, tools: [] })
         return
@@ -84,6 +88,11 @@ export async function processLead(leadId: number, webhookId: string, esperaSegun
         continue
       }
 
+      // finalização do currículo: se o modelo não passou o card, passa assim mesmo (o card não pode ficar parado)
+      if (instrucao && !reply.toolsUsed.includes('passar_para_vendedora')) {
+        await runTool(leadId, 'passar_para_vendedora', { motivo: 'Currículo / vaga', resumo: 'Triagem de currículo: o currículo não chegou em 1 hora. Ver a conversa no card.' })
+        reply.toolsUsed.push('passar_para_vendedora')
+      }
       const envio = await sendReply(lead, reply.parts)
       for (const [i, p] of reply.parts.entries()) {
         await appendMessage(leadId, { id: `sofi:${Date.now()}:${i}`, dir: 'out', text: p, ts: Date.now() })

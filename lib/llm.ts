@@ -26,6 +26,8 @@ export interface Contexto {
   /** dados já gravados no card, em texto ("Data da festa: 23/01/2027; Convidados: 80") */
   dadosDoCard?: string
   agoraMs?: number
+  /** ordem do sistema para este turno (não é fala do cliente) */
+  instrucao?: string
 }
 
 export interface AgentReply {
@@ -71,6 +73,7 @@ function montarContexto(history: ChatMsg[], ctx: Contexto): string {
     primeiraFala
       ? `Esta é a PRIMEIRA resposta da Sofi nesta conversa (siga a regra da primeira mensagem). Saudação desta conversa: "${saudacao(ctx.nome)}"`
       : 'A Sofi já se apresentou nesta conversa.',
+    ...(ctx.instrucao ? [`ORDEM DO SISTEMA PARA ESTA RESPOSTA: ${ctx.instrucao}`] : []),
   ].join('\n')
 }
 

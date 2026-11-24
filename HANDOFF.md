@@ -18,6 +18,8 @@ Depois: com as respostas 1 a 3 já passa (currículo opcional, oferecido na mens
 
 **2026-11-24 (tom):** `naturalizar()` em `lib/llm.ts` tira "Perfeito/Ótimo/Excelente/Maravilha/Show/Certo/Entendi/Combinado" do começo do balão e tira o nome do cliente se ele já apareceu nesta resposta ou nas 2 últimas da Sofi. `nomeDito()` pega o nome que o cliente escreveu ("meu nome é...") quando o contato não tem nome; `primeiroNome()` aceita compostos comuns (Maria Clara). Prompt: nome só na apresentação e no máximo mais 1 vez; sem narrar "vou anotar"; currículo de menor começa com `⚠️ Menor de idade (N anos)`. Evals 21 (checagem geral `VICIOS` em todos + `curriculo-menor-sem-repetir-nome`).
 
+**2026-11-24 (espera do currículo):** se a pessoa diz que vai mandar o currículo agora, a Sofi usa `aguardar_curriculo` (não passa), grava o prazo em `sofi:aguarda:<lead>` e agenda no **QStash** (`QSTASH_URL`/`QSTASH_TOKEN`, os mesmos do SDR/Ítalo; `SELF_URL`) a chamada de `POST /api/finalizar` em 60 min (header `x-webhook-secret` repassado). Lá: prazo vencido e card ainda com a Sofi → `processLead` com ordem do sistema (despede e passa para CURRÍCULO; se o modelo não passar, o código passa). Currículo chegou antes → gate barra, nada acontece. Evals 22/22.
+
 Estado em 2026-11-20: **em teste pelo número da Kuma** (TRANSPORT=uazapi com a instância do Ítalo SDR). O SDR repassa para `/api/uazapi` só os números de `SOFI_TESTE_NUMEROS` (no SDR); a Sofi confere `TESTE_NUMEROS` na entrada, no atendimento e no envio (vazio = ninguém, `todos` = todos). Para desligar o teste: apagar `SOFI_TESTE_NUMEROS`/`SOFI_URL` no SDR e redeploy; na Sofi, `TRANSPORT=dry`.
 
 ## Onde está

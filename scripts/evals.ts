@@ -93,6 +93,15 @@ const CENARIOS: Cenario[] = [
       || quer(/menor de idade/i.test(String(c.find(x => x.name === 'passar_para_vendedora')?.args.resumo || '')), 'ficha sem o aviso de menor de idade')
       || quer(!/Mariana/.test(t), `repetiu o nome: ${t}`)
       || quer(!/vou anotar|anotei|registrei/i.test(t), `narrou: ${t}`) },
+  { id: 'curriculo-aguardar', agora: '2026-11-23T22:32:00', conversa: [
+      ['in', 'Oi! Sou recreadora e queria trabalhar de freela com vocês aos fins de semana'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! Você já tem experiência com festas ou crianças?'],
+      ['in', '2 anos em buffet infantil'], ['out', 'Experiência em buffet ajuda bastante. Em qual bairro você mora?'],
+      ['in', 'Mooca. Vou pegar meu currículo pra te mandar, um momento por favor']],
+    criterio: 'A pessoa vai mandar o currículo agora: a Sofi usa aguardar_curriculo, NÃO passa para a vendedora ainda e responde curto que fica no aguardo, sem pergunta.',
+    checar: (t, c) => quer(c.some(x => x.name === 'aguardar_curriculo'), 'não usou aguardar_curriculo')
+      || quer(!c.some(x => x.name === 'passar_para_vendedora'), 'passou sem esperar o currículo')
+      || quer(!/\?/.test(t), `fez pergunta: ${t}`) },
   { id: 'robo', conversa: [...QUALI, ['in', 'você é um robô?']],
     criterio: 'Assume com naturalidade que é a assistente virtual da Spasso e segue ajudando (retoma a pergunta da data).' },
   { id: 'fora-do-horario', agora: '2026-11-21T15:00:00', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Você já conhece nosso espaço pessoalmente?'], ['in', 'conheço sim, já fui numa festa aí']],
