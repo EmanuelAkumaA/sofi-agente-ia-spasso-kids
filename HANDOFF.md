@@ -11,6 +11,8 @@
 
 **Teste valendo (2026-11-23, até o dono parar):** `ATENDE_TRIAGEM=sim`. O round robin do Kommo (configurado pelo dono) manda um lead para o robô e outro para a Triagem da Sofi com a tag `sofi`. Para número fora da lista, a Sofi procura o card na Triagem com a tag em até 3 tentativas de 6 s; achou → atende; não achou → ignora (é do robô). Nunca cria card para esses números. Resumo da passagem vai **só na nota** (campo Resumo não é mais gravado). Parar: pausa geral na Central IAs Kuma ou `ATENDE_TRIAGEM` fora + redeploy.
 
+**Ajustes do 1º lead real (2026-11-23):** etapa **CURRÍCULO** no fim dos funis Naomy (114480904) e Edi (114480908) e motivo **"Currículo / vaga"** (enum 134351013): vai para o funil da vendedora do número, sem tarefa. Saudação com o nome quando parece nome de pessoa (`saudacao()` / `primeiroNome()` em `lib/llm.ts`); `garantirSaudacao` tira o "oi"/nome repetido do balão seguinte e deixa no máximo 1 emoji. Currículo e "Não é cliente": sem prometer retorno, prazo ou orientações. Evals 19/19.
+
 Estado em 2026-11-20: **em teste pelo número da Kuma** (TRANSPORT=uazapi com a instância do Ítalo SDR). O SDR repassa para `/api/uazapi` só os números de `SOFI_TESTE_NUMEROS` (no SDR); a Sofi confere `TESTE_NUMEROS` na entrada, no atendimento e no envio (vazio = ninguém, `todos` = todos). Para desligar o teste: apagar `SOFI_TESTE_NUMEROS`/`SOFI_URL` no SDR e redeploy; na Sofi, `TRANSPORT=dry`.
 
 ## Onde está

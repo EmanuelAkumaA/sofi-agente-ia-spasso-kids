@@ -19,7 +19,7 @@ export const PROMPT = fs.readFileSync(path.join(process.cwd(), 'prompt.md'), 'ut
 const CACHE_KEY = `sofi:${crypto.createHash('sha256').update(PROMPT).digest('hex').slice(0, 16)}`
 const MAX_STEPS = 5
 
-export const SAUDACAO = 'Oii! Eu sou a Sofi da Spasso Kids. Como posso te ajudar?'
+export const SAUDACAO = 'Oii! Eu sou a Sofi da Spasso Kids. Como posso te ajudar?' // sem nome; com nome: saudacao(nome)
 
 export interface Contexto {
   nome?: string | null
@@ -68,7 +68,9 @@ function montarContexto(history: ChatMsg[], ctx: Contexto): string {
     linhaDeAgora(ctx.agoraMs),
     ctx.nome ? `Nome do contato no WhatsApp: ${ctx.nome} (use só se parecer nome de pessoa).` : 'Nome do cliente: ainda não sabemos.',
     ctx.dadosDoCard ? `Já anotado no card: ${ctx.dadosDoCard}.` : 'Nada anotado no card ainda.',
-    primeiraFala ? 'Esta é a PRIMEIRA resposta da Sofi nesta conversa (siga a regra da primeira mensagem).' : 'A Sofi já se apresentou nesta conversa.',
+    primeiraFala
+      ? `Esta é a PRIMEIRA resposta da Sofi nesta conversa (siga a regra da primeira mensagem). Saudação desta conversa: "${saudacao(ctx.nome)}"`
+      : 'A Sofi já se apresentou nesta conversa.',
   ].join('\n')
 }
 
@@ -123,14 +125,42 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
       input = [{ role: 'developer', content: 'Escreva agora a resposta para o cliente.' }]
       continue
     }
-    return { parts: garantirSaudacao(toParts(finalText), history), toolsUsed, handoff, usage }
+    return { parts: garantirSaudacao(toParts(finalText), history, ctx.nome), toolsUsed, handoff, usage }
   }
   return null
 }
 
-/** Na primeira fala, a apresentação da Sofi é obrigatória (regra do dono, 20/11/2026). */
-export function garantirSaudacao(parts: string[], history: ChatMsg[]): string[] {
+/** Primeiro nome do contato, só se parecer nome de pessoa. */
+export function primeiroNome(nome?: string | null): string | null {
+  const w = String(nome || '').trim().split(/\s+/)[0] || ''
+  if (!/^[A-Za-zÀ-ÿ]{2,20}$/.test(w) || /^(teste|sofi|spasso|cliente|buffet)$/i.test(w)) return null
+  return w[0].toUpperCase() + w.slice(1).toLowerCase()
+}
+
+/** Saudação da primeira fala: com o nome quando tiver (regra do dono, 23/11/2026). */
+export function saudacao(nome?: string | null): string {
+  const n = primeiroNome(nome)
+  return `${n ? `Oi, ${n}!` : 'Oii!'} Eu sou a Sofi da Spasso Kids. Como posso te ajudar?`
+}
+
+const EMOJI = /\p{Extended_Pictographic}/u
+// "Oi, Mayara! ", "Olá! ", "Oii, tudo bem? " no começo do balão: o oi já foi dito na apresentação.
+const OI_NO_COMECO = /^(?:[Oo]i+e?|[Oo]l[áa])(?![a-zà-ÿ])\s*[,!.]?\s*(?:[A-ZÀ-Ý][a-zà-ÿ]+\s*[,!.]\s*)?/
+function semOi(p: string): string {
+  const s = p.replace(OI_NO_COMECO, '')
+  return s ? s[0].toUpperCase() + s.slice(1) : s
+}
+
+/**
+ * Na primeira fala, a apresentação da Sofi é obrigatória (regra do dono, 20/11/2026).
+ * Sem "oi" repetido depois dela e no máximo 1 emoji na resposta.
+ */
+export function garantirSaudacao(parts: string[], history: ChatMsg[], nome?: string | null): string[] {
   if (history.some(m => m.dir === 'out') || !parts.length) return parts
-  if (/sou a sofi/i.test(parts.join(' '))) return parts
-  return [SAUDACAO.replace(' Como posso te ajudar?', ' 😊'), ...parts].slice(0, 3)
+  const i = parts.findIndex(p => /sou a sofi/i.test(p))
+  if (i >= 0) return parts.map((p, j) => (j > i ? semOi(p) : p)).filter(Boolean)
+  const resto = parts.map(semOi).filter(Boolean)
+  const n = primeiroNome(nome)
+  const apresentacao = `${n ? `Oi, ${n}!` : 'Oii!'} Eu sou a Sofi da Spasso Kids${EMOJI.test(resto.join(' ')) ? '.' : ' 😊'}`
+  return [apresentacao, ...resto].slice(0, 3)
 }

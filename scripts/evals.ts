@@ -1,7 +1,7 @@
 // Exame do cérebro da Sofi. Ferramentas em modo teste (nada vai ao Kommo).
 // Rodar: node --env-file=.env.local node_modules/tsx/dist/cli.mjs scripts/evals.ts [filtro] [--vezes=N]
 import OpenAI from 'openai'
-import { generateReply, SAUDACAO } from '../lib/llm'
+import { generateReply, saudacao } from '../lib/llm'
 import type { ChatMsg } from '../lib/history'
 import { CONFIG } from '../lib/config'
 
@@ -19,13 +19,13 @@ const SEM_VALOR = (t: string) => (/R\$\s?(?!300\b|300,00)\d/.test(t) || /\d+\s?%
 const passou = (calls: Call[], motivo: string) => calls.some(c => c.name === 'passar_para_vendedora' && c.args.motivo === motivo)
 const quer = (cond: boolean, msg: string) => (cond ? null : msg)
 const QUALI: Cenario['conversa'] = [
-  ['in', 'oi'], ['out', SAUDACAO],
+  ['in', 'oi'], ['out', saudacao('Mariana')],
   ['in', 'quero fazer o aniversário da minha filha'], ['out', 'Que delícia! 🥰 Já tem uma data em mente para a festa?'],
 ]
 
 const CENARIOS: Cenario[] = [
   { id: 'saudacao', conversa: [['in', 'oi']], criterio: 'Responde exatamente com a saudação da Sofi, sem perguntas extras.',
-    checar: t => quer(t.trim() === SAUDACAO, `saudação diferente: ${t}`) },
+    checar: t => quer(t.trim() === saudacao('Mariana'), `saudação diferente: ${t}`) },
   { id: 'preco-de-cara', conversa: [['in', 'quanto custa uma festa pra 80 pessoas?']],
     criterio: 'Se apresenta como Sofi, NÃO fala valor, explica que o valor depende da data/dia/convidados e pede UM dado que falta (a data). Uma pergunta só.',
     checar: t => SEM_VALOR(t) || quer(/sofi/i.test(t), 'não se apresentou') },
@@ -58,6 +58,12 @@ const CENARIOS: Cenario[] = [
   { id: 'fornecedor', conversa: [['in', 'Boa tarde, sou decoradora e gostaria de oferecer meus serviços para o buffet']],
     criterio: 'Agradece, diz que repassa para a equipe responsável, não tenta vender festa; passa como Não é cliente.',
     checar: (t, c) => quer(passou(c, 'Não é cliente'), 'não marcou Não é cliente') },
+  { id: 'curriculo', agora: '2026-11-23T20:52:00', conversa: [['in', 'Olá, tudo bem? Meu nome é Mayara e gostaria de saber se vocês estão contratando freelancers para trabalhar como monitora ou recreadora infantil aos finais de semana.']],
+    criterio: 'Apresenta-se UMA vez (só um "oi"), agradece o interesse, diz que repassa para a equipe responsável, NÃO promete retorno, prazo, horário nem orientações; passa como Currículo / vaga.',
+    checar: (t, c) => quer(passou(c, 'Currículo / vaga'), 'não marcou Currículo / vaga')
+      || quer(!/amanh|10h|retorn|orienta/i.test(t), `prometeu retorno: ${t}`)
+      || quer((t.match(/(?<![a-zà-ÿ])(oi+|ol[áa])(?![a-zà-ÿ])/gi) || []).length <= 1, `oi repetido: ${t}`)
+      || quer((t.match(/\p{Extended_Pictographic}/gu) || []).length <= 1, `mais de 1 emoji: ${t}`) },
   { id: 'robo', conversa: [...QUALI, ['in', 'você é um robô?']],
     criterio: 'Assume com naturalidade que é a assistente virtual da Spasso e segue ajudando (retoma a pergunta da data).' },
   { id: 'fora-do-horario', agora: '2026-11-21T15:00:00', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Você já conhece nosso espaço pessoalmente?'], ['in', 'conheço sim, já fui numa festa aí']],

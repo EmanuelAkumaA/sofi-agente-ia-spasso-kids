@@ -37,7 +37,7 @@ export const TOOLS = [
   },
   {
     name: 'passar_para_vendedora',
-    description: 'Passa o atendimento para a vendedora. Use quando: o cliente está qualificado (data + convidados + aniversariante); quer visitar o espaço; pergunta preço/valores/desconto; é cliente que já fechou (pós-venda); reclamação; pagamento; pede uma pessoa; assunto delicado; pedido fora do padrão; ou não é cliente (fornecedor, decoradora, currículo). Depois desta ferramenta a Sofi para de responder este cliente.',
+    description: 'Passa o atendimento para a vendedora. Use quando: o cliente está qualificado (data + convidados + aniversariante); quer visitar o espaço; pergunta preço/valores/desconto; é cliente que já fechou (pós-venda); reclamação; pagamento; pede uma pessoa; assunto delicado; pedido fora do padrão; quer trabalhar na Spasso (currículo/vaga); ou não é cliente (fornecedor, decoradora). Depois desta ferramenta a Sofi para de responder este cliente.',
     input_schema: {
       type: 'object',
       properties: {
@@ -111,7 +111,7 @@ export async function runTool(leadId: number, name: string, args: Record<string,
       })
       await addLeadTags(leadId, [CONFIG.humanTag])
       await addLeadNote(leadId, `🤖 Sofi passou para a vendedora — ${motivo}\n\n${resumo}`)
-      if (motivo !== 'Não é cliente') {
+      if (motivo !== 'Não é cliente' && motivo !== 'Currículo / vaga') {
         await createTask({ leadId, text: `Sofi: ${motivo}. Retomar o cliente pelo WhatsApp.`, completeTill: proximoHorarioUtil(), responsibleUserId: destino.responsible_user_id ?? lead.responsible_user_id })
       }
       return { content: `passado para a vendedora (${motivo})`, handoff: true }

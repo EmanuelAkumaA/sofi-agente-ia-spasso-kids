@@ -36,7 +36,7 @@ export const CRM_MAP = {
       enums: {
         'Qualificado': 134350861, 'Quer visita': 134350863, 'Pediu atendente': 134350865, 'Desconto / negociação': 134350867,
         'Pós-venda': 134350869, 'Reclamação': 134350871, 'Financeiro / pagamento': 134350873, 'Assunto delicado': 134350875,
-        'Pedido fora do padrão': 134350877, 'Não é cliente': 134350879,
+        'Pedido fora do padrão': 134350877, 'Não é cliente': 134350879, 'Currículo / vaga': 134351013,
       } as Record<string, number>,
     },
     resumo: { id: 2638349, tipo: 'textarea' },
@@ -50,8 +50,8 @@ export type Motivo = keyof typeof CRM_MAP.fields.motivo.enums
  * é passado para o funil dela, com ela de responsável.
  */
 export const VENDEDORAS = {
-  naomy: { nome: 'Naomy', userId: 15276460, pipelineId: 14814284, etapas: { novo: 114472440, agendarVisita: 114472444, emAtendimento: 114472448 } },
-  edi: { nome: 'Edi', userId: 14926311, pipelineId: 14814288, etapas: { novo: 114472468, agendarVisita: 114472472, emAtendimento: 114472476 } },
+  naomy: { nome: 'Naomy', userId: 15276460, pipelineId: 14814284, etapas: { novo: 114472440, agendarVisita: 114472444, emAtendimento: 114472448, curriculo: 114480904 } },
+  edi: { nome: 'Edi', userId: 14926311, pipelineId: 14814288, etapas: { novo: 114472468, agendarVisita: 114472472, emAtendimento: 114472476, curriculo: 114480908 } },
 } as const
 export type Vendedora = keyof typeof VENDEDORAS
 export const ehVendedora = (inst: string): inst is Vendedora => Object.prototype.hasOwnProperty.call(VENDEDORAS, inst)
@@ -63,7 +63,8 @@ export const FUNIS_DO_ATENDIMENTO: number[] = [CRM_MAP.pipelineId, ...Object.val
 export function destinoDaPassagem(inst: string, motivo: string): { pipeline_id: number; status_id: number; responsible_user_id?: number } {
   if (!ehVendedora(inst) || motivo === 'Não é cliente') return { pipeline_id: CRM_MAP.pipelineId, status_id: etapaDoMotivo(motivo) }
   const v = VENDEDORAS[inst]
-  const status_id = motivo === 'Qualificado' ? v.etapas.novo : motivo === 'Quer visita' ? v.etapas.agendarVisita : v.etapas.emAtendimento
+  const status_id = motivo === 'Qualificado' ? v.etapas.novo : motivo === 'Quer visita' ? v.etapas.agendarVisita
+    : motivo === 'Currículo / vaga' ? v.etapas.curriculo : v.etapas.emAtendimento
   return { pipeline_id: v.pipelineId, status_id, responsible_user_id: v.userId }
 }
 
@@ -72,6 +73,6 @@ export function etapaDoMotivo(motivo: string): number {
   const s = CRM_MAP.stages
   if (motivo === 'Qualificado') return s.qualificado.id
   if (motivo === 'Quer visita') return s.querVisita.id
-  if (motivo === 'Não é cliente') return s.naoECliente.id
+  if (motivo === 'Não é cliente' || motivo === 'Currículo / vaga') return s.naoECliente.id
   return s.comVendedora.id
 }

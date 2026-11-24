@@ -3,7 +3,7 @@ import assert from 'assert'
 import { camposDosDados } from '../lib/tools'
 import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, destinoDaPassagem, ehVendedora, etapaDoMotivo } from '../lib/crm-map'
 import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
-import { garantirSaudacao, SAUDACAO } from '../lib/llm'
+import { garantirSaudacao, primeiroNome, saudacao, SAUDACAO } from '../lib/llm'
 import { dadosDoCard, gateDoLead } from '../lib/agent'
 
 const F = CRM_MAP.fields
@@ -30,6 +30,8 @@ const N = VENDEDORAS.naomy, E = VENDEDORAS.edi
 assert.deepStrictEqual(destinoDaPassagem('naomy', 'Qualificado'), { pipeline_id: N.pipelineId, status_id: N.etapas.novo, responsible_user_id: N.userId })
 assert.deepStrictEqual(destinoDaPassagem('edi', 'Quer visita'), { pipeline_id: E.pipelineId, status_id: E.etapas.agendarVisita, responsible_user_id: E.userId })
 assert.strictEqual(destinoDaPassagem('edi', 'Reclamação').status_id, E.etapas.emAtendimento)
+assert.deepStrictEqual(destinoDaPassagem('edi', 'Currículo / vaga'), { pipeline_id: E.pipelineId, status_id: E.etapas.curriculo, responsible_user_id: E.userId })
+assert.strictEqual(destinoDaPassagem('kuma', 'Currículo / vaga').status_id, CRM_MAP.stages.naoECliente.id)
 assert.deepStrictEqual(destinoDaPassagem('naomy', 'Não é cliente'), { pipeline_id: CRM_MAP.pipelineId, status_id: CRM_MAP.stages.naoECliente.id })
 assert.deepStrictEqual(destinoDaPassagem('kuma', 'Qualificado'), { pipeline_id: CRM_MAP.pipelineId, status_id: CRM_MAP.stages.qualificado.id })
 assert.ok(!ehVendedora('toString'), 'nome de propriedade não vira vendedora')
@@ -49,6 +51,16 @@ const h0 = [{ id: '1', dir: 'in' as const, text: 'tem data 23/01?', ts: 1 }]
 assert.ok(garantirSaudacao(['Vou anotar!'], h0)[0].startsWith('Oii! Eu sou a Sofi'))
 assert.deepStrictEqual(garantirSaudacao([SAUDACAO], h0), [SAUDACAO])
 assert.deepStrictEqual(garantirSaudacao(['Ok'], [...h0, { id: '2', dir: 'out', text: 'x', ts: 2 }]), ['Ok'])
+// com nome, sem "oi" repetido no balão seguinte e no máximo 1 emoji (caso Mayara, 23/11/2026)
+const mayara = garantirSaudacao(['Oi, Mayara! Obrigada pelo interesse em trabalhar com a Spasso 😊 Vou repassar.'], h0, 'Mayara')
+assert.deepStrictEqual(mayara, ['Oi, Mayara! Eu sou a Sofi da Spasso Kids.', 'Obrigada pelo interesse em trabalhar com a Spasso 😊 Vou repassar.'])
+assert.deepStrictEqual(garantirSaudacao(['Olá! Tem sim.'], h0, null), ['Oii! Eu sou a Sofi da Spasso Kids 😊', 'Tem sim.'])
+assert.deepStrictEqual(garantirSaudacao(['Oito convidados?'], h0, 'ana')[1], 'Oito convidados?')
+assert.deepStrictEqual(garantirSaudacao(['Oi, Ana! Eu sou a Sofi da Spasso Kids 😊', 'Oi Ana, tem sim.'], h0, 'Ana'), ['Oi, Ana! Eu sou a Sofi da Spasso Kids 😊', 'Tem sim.'])
+assert.strictEqual(saudacao('mayara silva'), 'Oi, Mayara! Eu sou a Sofi da Spasso Kids. Como posso te ajudar?')
+assert.strictEqual(saudacao('~ May 🌸'), SAUDACAO)
+assert.strictEqual(primeiroNome('TESTE SOFI - 1234'), null)
+assert.strictEqual(primeiroNome('5511999999999'), null)
 
 // gate (fail-closed)
 const base = { id: 1, pipeline_id: CRM_MAP.pipelineId, status_id: CRM_MAP.stages.atendendo.id, _embedded: { tags: [{ id: 1, name: 'Sofi' }] } }
