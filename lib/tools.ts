@@ -37,7 +37,7 @@ export const TOOLS = [
   },
   {
     name: 'passar_para_vendedora',
-    description: 'Passa o atendimento para a vendedora. Use quando: o cliente está qualificado (data + convidados + aniversariante); quer visitar o espaço; pergunta preço/valores/desconto; é cliente que já fechou (pós-venda); reclamação; pagamento; pede uma pessoa; assunto delicado; pedido fora do padrão; quer trabalhar na Spasso (currículo/vaga); ou não é cliente (fornecedor, decoradora). Depois desta ferramenta a Sofi para de responder este cliente.',
+    description: 'Passa o atendimento para a vendedora. Use quando: o cliente está qualificado (data + convidados + aniversariante); quer visitar o espaço; pergunta preço/valores/desconto; é cliente que já fechou (pós-venda); reclamação; pagamento; pede uma pessoa; assunto delicado; pedido fora do padrão; quer trabalhar na Spasso (currículo/vaga, só DEPOIS da triagem de currículo do prompt); ou não é cliente (fornecedor, decoradora). Depois desta ferramenta a Sofi para de responder este cliente.',
     input_schema: {
       type: 'object',
       properties: {
