@@ -6,6 +6,26 @@ import { dentroDoHorario, linhaDeAgora, proximaAbertura } from '../lib/horario'
 import { garantirAvisoForaDoHorario, garantirSaudacao, naturalizar, nomeDito, primeiroNome, prometePassar, saudacao, SAUDACAO, semEmoji } from '../lib/llm'
 import { ancoraDoFollow, planoFollow } from '../lib/follow'
 import { semEco, aplicarBloco, BLOCO_SPASSO, MARCA_BLOCO, semTravessao } from '../lib/llm'
+import { generoSpasso, fraseDoAniversariante, podeBloco } from '../lib/llm'
+
+// pedidos das vendedoras e bugs de 25/11/2026
+assert.deepStrictEqual(generoSpasso(['Obrigada pelo interesse em trabalhar com a Spasso!', 'A Spasso tem estrutura completa e a equipe da Spasso cuida de tudo.', 'Buffet Spasso Kids', 'festa na Spasso']),
+  ['Obrigada pelo interesse em trabalhar com o Spasso!', 'O Spasso tem estrutura completa e a equipe do Spasso cuida de tudo.', 'Buffet Spasso Kids', 'festa no Spasso'])
+assert.deepStrictEqual(fraseDoAniversariante(['Qual é o nome e a idade que o aniversariante vai fazer?']), ['Qual o nome do aniversariante e quantos anos vai fazer?'])
+assert.deepStrictEqual(naturalizar(['Que delícia, 2 aninhos! Você já conhece nosso espaço?'], [], null), ['Você já conhece nosso espaço?'])
+assert.deepStrictEqual(naturalizar(['Que fofura! Crianças até 5 anos são cortesia.'], [], null), ['Crianças até 5 anos são cortesia.'])
+assert.deepStrictEqual(naturalizar(['Que delícia!', 'Quantos convidados?'], [], null), ['Quantos convidados?'])
+{
+  const oi = [{ id: '1', dir: 'in' as const, text: 'OI', ts: 1 }, { id: '2', dir: 'out' as const, text: 'Oi, Wendell! Eu sou a Sofi do Spasso Kids. Como posso te ajudar?', ts: 2 },
+    { id: '3', dir: 'in' as const, text: 'Bom dia', ts: 3 }, { id: '4', dir: 'out' as const, text: 'Bom dia! Tudo bem por aqui. Como posso te ajudar?', ts: 4 }]
+  assert.ok(podeBloco(oi), 'Wendell: só cumprimentos, o bloco ainda pode sair')
+  assert.ok(!podeBloco([...oi, { id: '5', dir: 'out' as const, text: 'Quantos convidados?', ts: 5 }]))
+  // Elisa: se despediu, não recebe follow
+  const H = 3_600_000
+  const elisa = [{ id: 'a', dir: 'out' as const, text: 'Qual o nome do aniversariante?', ts: 1 }, { id: 'b', dir: 'in' as const, text: 'moro longe, obrigada', ts: 2 },
+    { id: 'c', dir: 'out' as const, text: 'Entendo! Se precisar, estamos à disposição.', ts: 3 }]
+  assert.deepStrictEqual(planoFollow(elisa, null, 3 + 5 * H, 0), { acao: 'nada', motivo: 'sem pergunta pendente' })
+}
 
 // sem travessão (24/11/2026)
 assert.deepStrictEqual(semTravessao(['A melhor forma é vir fazer uma visita com degustação — tenho certeza de que vocês vão se encantar.']),
@@ -120,11 +140,11 @@ assert.deepStrictEqual(garantirSaudacao([SAUDACAO], h0), [SAUDACAO])
 assert.deepStrictEqual(garantirSaudacao(['Ok'], [...h0, { id: '2', dir: 'out', text: 'x', ts: 2 }]), ['Ok'])
 // com nome, sem "oi" repetido no balão seguinte e no máximo 1 emoji (caso Mayara, 23/11/2026)
 const mayara = garantirSaudacao(['Oi, Mayara! Obrigada pelo interesse em trabalhar com a Spasso 😊 Vou repassar.'], h0, 'Mayara')
-assert.deepStrictEqual(mayara, ['Oi, Mayara! Eu sou a Sofi da Spasso Kids.', 'Obrigada pelo interesse em trabalhar com a Spasso 😊 Vou repassar.'])
-assert.deepStrictEqual(garantirSaudacao(['Olá! Tem sim.'], h0, null), ['Oii! Eu sou a Sofi da Spasso Kids 😊', 'Tem sim.'])
+assert.deepStrictEqual(mayara, ['Oi, Mayara! Eu sou a Sofi do Spasso Kids.', 'Obrigada pelo interesse em trabalhar com a Spasso 😊 Vou repassar.'])
+assert.deepStrictEqual(garantirSaudacao(['Olá! Tem sim.'], h0, null), ['Oii! Eu sou a Sofi do Spasso Kids 😊', 'Tem sim.'])
 assert.deepStrictEqual(garantirSaudacao(['Oito convidados?'], h0, 'ana')[1], 'Oito convidados?')
-assert.deepStrictEqual(garantirSaudacao(['Oi, Ana! Eu sou a Sofi da Spasso Kids 😊', 'Oi Ana, tem sim.'], h0, 'Ana'), ['Oi, Ana! Eu sou a Sofi da Spasso Kids 😊', 'Tem sim.'])
-assert.strictEqual(saudacao('mayara silva'), 'Oi, Mayara! Eu sou a Sofi da Spasso Kids. Como posso te ajudar?')
+assert.deepStrictEqual(garantirSaudacao(['Oi, Ana! Eu sou a Sofi do Spasso Kids 😊', 'Oi Ana, tem sim.'], h0, 'Ana'), ['Oi, Ana! Eu sou a Sofi do Spasso Kids 😊', 'Tem sim.'])
+assert.strictEqual(saudacao('mayara silva'), 'Oi, Mayara! Eu sou a Sofi do Spasso Kids. Como posso te ajudar?')
 assert.strictEqual(saudacao('~ May 🌸'), SAUDACAO)
 assert.strictEqual(primeiroNome('TESTE SOFI - 1234'), null)
 assert.strictEqual(primeiroNome('5511999999999'), null)
@@ -134,10 +154,10 @@ const mc = [{ id: 'a', dir: 'in' as const, text: 'Olá! Meu nome é Maria Clara,
 assert.strictEqual(nomeDito(mc), 'Maria Clara')
 assert.strictEqual(primeiroNome('Maria Clara Pontes'), 'Maria Clara')
 assert.strictEqual(primeiroNome('Maria da Silva'), 'Maria')
-assert.deepStrictEqual(garantirSaudacao(['Obrigada pelo interesse em trabalhar com a Spasso, Maria Clara! Você tem experiência?'], mc, 'Maria Clara')[0], 'Oi, Maria Clara! Eu sou a Sofi da Spasso Kids 😊')
+assert.deepStrictEqual(garantirSaudacao(['Obrigada pelo interesse em trabalhar com a Spasso, Maria Clara! Você tem experiência?'], mc, 'Maria Clara')[0], 'Oi, Maria Clara! Eu sou a Sofi do Spasso Kids 😊')
 assert.deepStrictEqual(
-  naturalizar(['Oi, Maria Clara! Eu sou a Sofi da Spasso Kids 😊', 'Obrigada pelo interesse em trabalhar com a Spasso, Maria Clara! Você tem experiência?'], mc, 'Maria Clara'),
-  ['Oi, Maria Clara! Eu sou a Sofi da Spasso Kids 😊', 'Obrigada pelo interesse em trabalhar com a Spasso! Você tem experiência?'])
+  naturalizar(['Oi, Maria Clara! Eu sou a Sofi do Spasso Kids 😊', 'Obrigada pelo interesse em trabalhar com a Spasso, Maria Clara! Você tem experiência?'], mc, 'Maria Clara'),
+  ['Oi, Maria Clara! Eu sou a Sofi do Spasso Kids 😊', 'Obrigada pelo interesse em trabalhar com a Spasso! Você tem experiência?'])
 const meio = [...mc, { id: 'b', dir: 'out' as const, text: 'Você tem experiência, Maria Clara?', ts: 2 }, { id: 'c', dir: 'in' as const, text: 'tenho', ts: 3 }]
 assert.deepStrictEqual(naturalizar(['Perfeito, Maria Clara! Vou anotar. Em qual bairro você mora?'], meio, 'Maria Clara'), ['Vou anotar. Em qual bairro você mora?'])
 assert.deepStrictEqual(naturalizar(['Ótimo! Em qual bairro?'], meio, null), ['Em qual bairro?'])

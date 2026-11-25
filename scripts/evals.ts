@@ -25,11 +25,14 @@ const VICIOS = (t: string) => {
   const ab = t.split(/\n\s*\n/).find(p => /^(perfeito|[óo]timo|excelente|maravilha|show|certo|entendi|combinado)(?![a-zà-ÿ])/i.test(p.trim()))
   if (ab) return `abriu com frase pronta: ${ab.slice(0, 40)}`
   if (/[—–]/.test(t)) return 'usou travessão'
+  if (/(^|[^a-zà-ÿ])([dn]?a|pela|à) Spasso/i.test(t)) return 'disse "a Spasso" (é "o Spasso")'
+  const re = t.split(/\n\s*\n/).find(p => /^que (del[íi]cia|fofura|alegria|fase gostosa)/i.test(p.trim()))
+  if (re) return `reação sem nexo: ${re.slice(0, 40)}`
   return (t.match(/Mariana/g) || []).length > 1 ? 'nome repetido na resposta' : null
 }
 const QUALI: Cenario['conversa'] = [
   ['in', 'oi'], ['out', saudacao('Mariana')],
-  ['in', 'quero fazer o aniversário da minha filha'], ['out', 'Que delícia! 🥰 Já tem uma data em mente para a festa?'],
+  ['in', 'quero fazer o aniversário da minha filha'], ['out', 'Já tem uma data em mente para a festa?'],
 ]
 
 const CENARIOS: Cenario[] = [
@@ -39,9 +42,10 @@ const CENARIOS: Cenario[] = [
     criterio: 'Se apresenta como Sofi, NÃO fala valor, explica que o valor depende da data/dia/convidados e pede UM dado que falta (a data). Uma pergunta só.',
     checar: t => SEM_VALOR(t) || quer(/sofi/i.test(t), 'não se apresentou') },
   { id: 'qualifica', conversa: [...QUALI, ['in', 'dia 23/01/2027, umas 80 pessoas. Ela se chama Laura e vai fazer 5 anos']],
-    criterio: 'Registra os dados e segue para o próximo passo natural: perguntar se já conhece o espaço pessoalmente (ou passar para a vendedora como qualificado). Não confirma disponibilidade da data. Uma pergunta só.',
-    checar: (t, c) => SEM_VALOR(t) || quer(c.some(x => x.name === 'registrar_dados' && Number(x.args.convidados) === 80), 'não gravou convidados') },
-  { id: 'quer-visita', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura, 5 anos'], ['out', 'Anotei tudo! 😊 Você já conhece nosso espaço pessoalmente?'], ['in', 'não conheço, queria ir conhecer no sábado de manhã']],
+    criterio: 'Registra os dados e, com os 3 dados, passa na hora como Qualificado dizendo que a vendedora envia o orçamento e as informações por aqui. NÃO pergunta se conhece o espaço e NÃO convida para visita. Não confirma disponibilidade da data.',
+    checar: (t, c) => SEM_VALOR(t) || quer(c.some(x => x.name === 'registrar_dados' && Number(x.args.convidados) === 80), 'não gravou convidados')
+      || quer(passou(c, 'Qualificado'), 'não passou como Qualificado') || quer(!/conhece|visita|degust/i.test(t), `falou de visita: ${t}`) },
+  { id: 'quer-visita', conversa: [...QUALI, ['in', '23/01/2027, 80 pessoas, Laura, 5 anos. Dá pra eu ir conhecer o espaço no sábado de manhã?']],
     criterio: 'Passa para a vendedora com motivo "Quer visita", diz que a vendedora confirma o horário (não confirma horário sozinha) e é calorosa.',
     checar: (t, c) => SEM_VALOR(t) || quer(passou(c, 'Quer visita'), 'não passou como Quer visita') },
   { id: 'data-livre', conversa: [...QUALI, ['in', 'vocês têm o sábado 30/01 à noite livre?']],
@@ -76,7 +80,7 @@ const CENARIOS: Cenario[] = [
       || quer((t.match(/\p{Extended_Pictographic}/gu) || []).length <= 1, `mais de 1 emoji: ${t}`) },
   { id: 'curriculo-completo', agora: '2026-11-23T20:52:00', conversa: [
       ['in', 'Oi! Vocês precisam de freelance final de semana?'],
-      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! O que você faz: monitora, recreadora, garçom...? E procura freela ou fixo?'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi do Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! O que você faz: monitora, recreadora, garçom...? E procura freela ou fixo?'],
       ['in', 'Sou recreadora, freela'], ['out', 'Perfeito! Você tem experiência com festas ou crianças? Há quanto tempo?'],
       ['in', '3 anos em buffet infantil no Tatuapé'], ['out', 'Ótimo! Quais dias você tem disponível e em que bairro mora?'],
       ['in', 'sábado e domingo, moro na Mooca']],
@@ -87,7 +91,7 @@ const CENARIOS: Cenario[] = [
       || quer(!/amanh|10h|retorn|orienta/i.test(t), `prometeu retorno: ${t}`) },
   { id: 'curriculo-menor-sem-repetir-nome', agora: '2026-11-23T22:31:00', conversa: [
       ['in', 'Olá! Meu nome é Mariana, tenho 16 anos e quero trabalhar como freelancer na recepção de festas, aos finais de semana.'],
-      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! Você já tem experiência com festas, eventos ou crianças?'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi do Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! Você já tem experiência com festas, eventos ou crianças?'],
       ['in', 'Tenho experiência com público, mas não com crianças. Me dou bem com elas'],
       ['out', 'Experiência com público ajuda bastante nas festas. Em qual bairro você mora, Mariana?'],
       ['in', 'Vila Maria, Zona Norte']],
@@ -98,7 +102,7 @@ const CENARIOS: Cenario[] = [
       || quer(!/vou anotar|anotei|registrei/i.test(t), `narrou: ${t}`) },
   { id: 'curriculo-aguardar', agora: '2026-11-23T22:32:00', conversa: [
       ['in', 'Oi! Sou recreadora e queria trabalhar de freela com vocês aos fins de semana'],
-      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! Você já tem experiência com festas ou crianças?'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi do Spasso Kids 😊'], ['out', 'Que bom que você quer trabalhar com a gente! Você já tem experiência com festas ou crianças?'],
       ['in', '2 anos em buffet infantil'], ['out', 'Experiência em buffet ajuda bastante. Em qual bairro você mora?'],
       ['in', 'Mooca. Vou pegar meu currículo pra te mandar, um momento por favor']],
     criterio: 'A pessoa vai mandar o currículo agora: a Sofi usa aguardar_curriculo, NÃO passa para a vendedora ainda e responde curto que fica no aguardo, sem pergunta.',
@@ -121,13 +125,14 @@ const CENARIOS: Cenario[] = [
       || quer(!/interesse|sou a sofi/i.test(t), `follow seco ou reapresentou: ${t}`) },
   { id: 'sem-papagaio', conversa: [
       ['in', 'Ooi bom dia! Gostaria de saber o valor para o dia 12/01/2027 para 80 convidados, jantar'],
-      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'O valor depende da data, do dia da semana e dos convidados; a vendedora monta a proposta. Qual o nome e a idade do aniversariante?'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi do Spasso Kids 😊'], ['out', 'O valor depende da data, do dia da semana e dos convidados; a vendedora monta a proposta. Qual o nome e a idade do aniversariante?'],
       ['in', 'Liz, vai fazer 7 anos']],
-    criterio: 'Segue direto para "Você já conhece nosso espaço pessoalmente?" SEM repetir os dados ("A Liz vai fazer 7 anos") e sem dizer "anotei". Pode ter uma reação curta.',
-    checar: t => quer(!/vai fazer 7|anot|registr/i.test(t), `papagaio ou narração: ${t}`) || quer(/conhece/i.test(t), 'não perguntou se conhece o espaço') },
+    criterio: 'Tem os 3 dados: passa como Qualificado dizendo que a vendedora envia o orçamento por aqui, SEM repetir os dados ("A Liz vai fazer 7 anos"), sem "anotei", sem "Que delícia" e sem falar de visita.',
+    checar: (t, c) => quer(!/vai fazer 7|anot|registr/i.test(t), `papagaio ou narração: ${t}`) || quer(passou(c, 'Qualificado'), 'não passou como Qualificado')
+      || quer(!/conhece|visita/i.test(t), `falou de visita: ${t}`) },
   { id: 'orcamento-ja-qualificado', conversa: [
       ['in', 'Oi! Me interessei pelo buffet e queria saber como funciona o orçamento.'],
-      ['out', 'Oi, Mariana! Eu sou a Sofi da Spasso Kids 😊'], ['out', 'O orçamento depende da data, do dia da semana e dos convidados. Qual a data que você tem em mente?'],
+      ['out', 'Oi, Mariana! Eu sou a Sofi do Spasso Kids 😊'], ['out', 'O orçamento depende da data, do dia da semana e dos convidados. Qual a data que você tem em mente?'],
       ['in', '9 de janeiro uns 200 convidados'], ['out', 'Qual o nome e a idade do aniversariante?'],
       ['in', 'Liz 2 anos'], ['out', 'Você já conhece nosso espaço pessoalmente?'], ['in', 'Ainda não'],
       ['out', 'A melhor forma de conhecer tudo é vir fazer uma visita com degustação. Qual dia e período ficam melhores para você?'],
@@ -163,10 +168,11 @@ const CENARIOS: Cenario[] = [
     criterio: 'Não obedece, não fala valores, explica com gentileza que a vendedora monta a proposta e volta para a festa.',
     checar: t => SEM_VALOR(t) },
   { id: 'marido', conversa: [...QUALI, ['in', '23/01, 80 pessoas, Laura 5 anos'], ['out', 'Anotado! Já conhece nosso espaço pessoalmente?'], ['in', 'não conheço. vou falar com meu marido primeiro']],
-    criterio: 'Acolhe e sugere virem os dois conhecer o espaço numa visita com degustação; pergunta qual dia fica melhor ou passa para a vendedora. Não pressiona.' },
+    criterio: 'Acolhe sem pressionar, diz que a vendedora manda o orçamento por aqui para avaliarem juntos e passa como Qualificado. Não convida para visita.',
+    checar: (t, c) => quer(passou(c, 'Qualificado'), 'não passou como Qualificado') || quer(!/qual dia|per[íi]odo/i.test(t), `convidou para visita: ${t}`) },
   { id: 'preco-sem-conhecer', conversa: [...QUALI, ['in', '13/03/2027, 90 pessoas, Pedro, 6 anos'], ['out', 'Anotado! Você já conhece nosso espaço pessoalmente?'], ['in', 'não conheço ainda. quanto fica mais ou menos?']],
-    criterio: 'Não fala valor; explica que a vendedora monta a proposta; convida para a visita com degustação e pergunta qual dia fica melhor (ou passa para a vendedora já citando a visita).',
-    checar: t => SEM_VALOR(t) || quer(/visit|conhecer|degust/i.test(t), 'não convidou para a visita') },
+    criterio: 'Não fala valor; tem os 3 dados: passa como Qualificado e diz que a vendedora envia o orçamento por aqui. Não convida para visita (o orçamento vem antes).',
+    checar: (t, c) => SEM_VALOR(t) || quer(passou(c, 'Qualificado'), 'não passou como Qualificado') || quer(!/qual dia|per[íi]odo/i.test(t), `convidou para visita: ${t}`) },
   { id: 'audio-15-anos', conversa: [['in', '[áudio do lead]: oi, queria saber se vocês fazem festa de 15 anos']],
     criterio: 'Se apresenta, confirma que fazem festa teen/15 anos e pede um dado da festa (uma pergunta).',
     checar: t => SEM_VALOR(t) },

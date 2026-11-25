@@ -7,7 +7,7 @@ import { gateDoLead, processLead } from '../lib/agent'
 import { appendMessage, isEchoOfSent, seenMessage } from '../lib/history'
 import { addLeadNote, addLeadTags, createLeadWithContact, findOpenLeadByPhone, patchLead, sleep, type KommoLead } from '../lib/kommo'
 import { numeroLiberado } from '../lib/liberados'
-import { gravarInstancia } from '../lib/transport'
+import { gravarInstancia, gravarLid } from '../lib/transport'
 import { secretOk, textoDaMensagem } from './inbound'
 import { logExec } from '../lib/execlog'
 
@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   return res.status(200).json({ ok: true })
 }
 
-interface Recebida { id: string; tel: string; texto: string; tipo: string; deMim: boolean; pelaApi: boolean; grupo: boolean; nome: string }
+interface Recebida { id: string; tel: string; lid: string; texto: string; tipo: string; deMim: boolean; pelaApi: boolean; grupo: boolean; nome: string }
 
 function lerEvento(corpo: any): Recebida | null {
   const m = corpo?.message ?? corpo?.messages?.[0] ?? corpo
@@ -46,6 +46,7 @@ function lerEvento(corpo: any): Recebida | null {
     tel: grupo ? '' : chat.replace(/@.*/, '').replace(/\D/g, '') || String(m.sender_pn ?? '').replace(/\D/g, ''),
     texto,
     tipo: t.includes('audio') || t.includes('ptt') ? 'voice' : t.includes('image') ? 'picture' : t.includes('document') ? 'file' : '',
+    lid: String(m.sender ?? '').endsWith('@lid') ? String(m.sender) : '',
     deMim: m.fromMe === true || m.fromMe === 'true',
     pelaApi: m.wasSentByApi === true || m.wasSentByApi === 'true',
     grupo,
@@ -97,6 +98,7 @@ async function ingerir(m: Recebida, inst: string, daLista: boolean): Promise<voi
   const S = CRM_MAP.stages
   if (([S.follow1.id, S.follow2.id, S.follow3.id, S.semResposta.id] as number[]).includes(lead.status_id)) await patchLead(lead.id, { status_id: S.atendendo.id })
   await gravarInstancia(lead.id, inst)
+  if (m.lid && !m.deMim) await gravarLid(lead.id, m.lid)
   const link = m.tipo ? await urlDaMidia(m.id, inst) : ''
   const texto = await textoDaMensagem(m.texto, m.tipo, link)
   if (!texto || await isEchoOfSent(lead.id, texto)) return

@@ -19,7 +19,7 @@ export const PROMPT = fs.readFileSync(path.join(process.cwd(), 'prompt.md'), 'ut
 const CACHE_KEY = `sofi:${crypto.createHash('sha256').update(PROMPT).digest('hex').slice(0, 16)}`
 const MAX_STEPS = 5
 
-export const SAUDACAO = 'Oii! Eu sou a Sofi da Spasso Kids. Como posso te ajudar?' // sem nome; com nome: saudacao(nome)
+export const SAUDACAO = 'Oii! Eu sou a Sofi do Spasso Kids. Como posso te ajudar?' // sem nome; com nome: saudacao(nome)
 
 export interface Contexto {
   nome?: string | null
@@ -151,7 +151,7 @@ export async function generateReply(leadId: number, history: ChatMsg[], ctx: Con
     const comSaudacao = semEco(garantirSaudacao(toParts(finalText), history, ctx.nome), history)
     let parts = garantirAvisoForaDoHorario(naturalizar(comSaudacao, history, ctx.nome), motivoPassagem, ctx.agoraMs)
     if (ctx.semEmoji) parts = semEmoji(parts)
-    parts = aplicarBloco(semTravessao(parts), history) // por último: as travas acima não mexem no texto fixo
+    parts = aplicarBloco(fraseDoAniversariante(generoSpasso(semTravessao(parts))), history) // por último: as travas acima não mexem no texto fixo
     return { parts, toolsUsed, handoff, usage }
   }
   return null
@@ -205,7 +205,7 @@ export function naturalizar(parts: string[], history: ChatMsg[], nome?: string |
   const out: string[] = []
   for (const original of parts) {
     let p = n && usado ? tirarVocativo(original, n) : original
-    p = p.replace(ABERTURA_PRONTA, '')
+    p = p.replace(ABERTURA_PRONTA, '').replace(REACAO_SEM_NEXO, '')
     p = p ? p[0].toUpperCase() + p.slice(1) : p
     if (n && p.includes(n)) usado = true
     if (p.trim()) out.push(p)
@@ -216,7 +216,7 @@ export function naturalizar(parts: string[], history: ChatMsg[], nome?: string |
 /** Saudação da primeira fala: com o nome quando tiver (regra do dono, 23/11/2026). */
 export function saudacao(nome?: string | null): string {
   const n = primeiroNome(nome)
-  return `${n ? `Oi, ${n}!` : 'Oii!'} Eu sou a Sofi da Spasso Kids. Como posso te ajudar?`
+  return `${n ? `Oi, ${n}!` : 'Oii!'} Eu sou a Sofi do Spasso Kids. Como posso te ajudar?`
 }
 
 const EMOJI = /\p{Extended_Pictographic}/u
@@ -237,7 +237,7 @@ export function garantirSaudacao(parts: string[], history: ChatMsg[], nome?: str
   if (i >= 0) return parts.map((p, j) => (j > i ? semOi(p) : p)).filter(Boolean)
   const resto = parts.map(semOi).filter(Boolean)
   const n = primeiroNome(nome)
-  const apresentacao = `${n ? `Oi, ${n}!` : 'Oii!'} Eu sou a Sofi da Spasso Kids${EMOJI.test(resto.join(' ')) ? '.' : ' 😊'}`
+  const apresentacao = `${n ? `Oi, ${n}!` : 'Oii!'} Eu sou a Sofi do Spasso Kids${EMOJI.test(resto.join(' ')) ? '.' : ' 😊'}`
   return [apresentacao, ...resto].slice(0, 3)
 }
 
@@ -314,7 +314,8 @@ export function blocoJaEnviado(history: ChatMsg[]): boolean {
 
 /** O bloco só entra no começo: ainda não foi e a Sofi mandou no máximo a saudação. */
 export function podeBloco(history: ChatMsg[]): boolean {
-  return !blocoJaEnviado(history) && history.filter(m => m.dir === 'out').length <= 1
+  // vale enquanto a Sofi só cumprimentou (o cliente pode ter mandado "bom dia", "tudo bem?" antes de dizer o que quer)
+  return !blocoJaEnviado(history) && history.filter(m => m.dir === 'out').every(m => /sou a sofi|como posso te ajudar/i.test(m.text))
 }
 
 /** Troca a marca pelo bloco (uma vez por conversa); marca fora de hora some. */
@@ -333,4 +334,23 @@ export function aplicarBloco(parts: string[], history: ChatMsg[]): string[] {
 /** Sem travessão (pedido do dono, 24/11/2026): "—" e "–" viram vírgula. Hífen normal fica. */
 export function semTravessao(parts: string[]): string[] {
   return parts.map(p => p.replace(/\s*[—–]\s*/g, ', ').replace(/,\s*([,.!?])/g, '$1').replace(/^,\s*/, ''))
+}
+
+// "Que delícia!" para uma idade não tem nexo (pedido das vendedoras, 25/11/2026)
+export const REACAO_SEM_NEXO = /^que (?:del[íi]cia|fofura|alegria|fase gostosa|gostoso|gostosa|lindo|linda|amor|maravilha)(?![a-zà-ÿ])[^.!?\n]{0,40}[!.]\s*/i
+
+/** "o Spasso" (o buffet), nunca "a Spasso" (pedido das vendedoras, 25/11/2026). */
+export function generoSpasso(parts: string[]): string[] {
+  return parts.map(p => p
+    .replace(/(^|[^a-zà-ÿ])([Dd])a Spasso/g, '$1$2o Spasso')
+    .replace(/(^|[^a-zà-ÿ])([Nn])a Spasso/g, '$1$2o Spasso')
+    .replace(/(^|[^a-zà-ÿ])([Pp])ela Spasso/g, '$1$2elo Spasso')
+    .replace(/(^|[^a-zà-ÿ])à Spasso/g, '$1ao Spasso')
+    .replace(/(^|[^a-zà-ÿ])a Spasso/g, '$1o Spasso')
+    .replace(/(^|[^a-zà-ÿ])A Spasso/g, '$1O Spasso'))
+}
+
+/** A frase truncada que saía em vários leads vira a pergunta certa. */
+export function fraseDoAniversariante(parts: string[]): string[] {
+  return parts.map(p => p.replace(/qual (?:é )?o nome e a idade que o aniversariante vai fazer\?/gi, 'Qual o nome do aniversariante e quantos anos vai fazer?'))
 }

@@ -31,6 +31,9 @@ export function planoFollow(h: ChatMsg[], estado: EstadoFollow | null, agora: nu
   const ancora = ancoraDoFollow(h)
   if (!ancora) return { acao: 'nada', motivo: 'cliente falou por último ou sem conversa' }
   if (ancora < desde) return { acao: 'nada', motivo: 'backlog (antes da ativação)' }
+  // Despedida ou agradecimento não pede resposta: sem pergunta pendente, não há o que cobrar (caso Elisa, 25/11/2026)
+  const ultimaIn = h.map(m => m.dir).lastIndexOf('in')
+  if (!h.slice(ultimaIn + 1).some(m => m.dir === 'out' && m.text.includes('?'))) return { acao: 'nada', motivo: 'sem pergunta pendente' }
   // resposta nova do cliente = âncora nova = cadência recomeça
   const enviados = estado && estado.ancora === ancora ? estado.enviados : 0
   const horas = (agora - ancora) / 3_600_000
