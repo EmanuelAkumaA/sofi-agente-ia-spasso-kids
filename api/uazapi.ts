@@ -5,8 +5,9 @@ import { CONFIG } from '../lib/config'
 import { CRM_MAP, FUNIS_DO_ATENDIMENTO, VENDEDORAS, ehVendedora } from '../lib/crm-map'
 import { gateDoLead, processLead } from '../lib/agent'
 import { appendMessage, isEchoOfSent, seenMessage } from '../lib/history'
-import { addLeadNote, addLeadTags, createLeadWithContact, findOpenLeadByPhone, patchLead, sleep, type KommoLead } from '../lib/kommo'
-import { numeroLiberado } from '../lib/liberados'
+import { addLeadNote, addLeadTags, createLeadWithContact, findOpenLeadByPhone, getLead, patchLead, sleep, type KommoLead } from '../lib/kommo'
+import { chaveTel, numeroLiberado } from '../lib/liberados'
+import { redis } from '../lib/redis'
 import { gravarInstancia, gravarLid } from '../lib/transport'
 import { secretOk, textoDaMensagem } from './inbound'
 import { logExec } from '../lib/execlog'
@@ -71,12 +72,35 @@ async function urlDaMidia(id: string, inst: string): Promise<string> {
  * com a tag `sofi` (3 tentativas de 6 s). Não apareceu = é do robô/vendedora: a Sofi não entra.
  */
 const TENTATIVAS = 3, ESPERA_MS = 6000
+
+// 🩸 27/11/2026: cada mensagem (do cliente e da vendedora) buscava o card no Kommo; a rajada fez o Kommo bloquear a API.
+// Agora o telefone lembra o card da Sofi (30 dias) e o "não é da Sofi" (1 h, é do robô ou da vendedora).
+const K_CARD = (tel: string) => `sofi:card:${chaveTel(tel)}`
+const K_NAO = (tel: string) => `sofi:naosofi:${chaveTel(tel)}`
+async function lembrarCard(tel: string, leadId: number): Promise<void> {
+  await redis.set(K_CARD(tel), leadId, { ex: 30 * 86400 })
+  await redis.del(K_NAO(tel))
+}
+/** O card da Sofi que este telefone já usou, se ainda vale (1 chamada ao Kommo em vez da busca). */
+async function cardLembrado(tel: string): Promise<KommoLead | null> {
+  const id = Number(await redis.get(K_CARD(tel)))
+  if (!id) return null
+  const lead = await getLead(id).catch(() => null)
+  if (lead && lead.pipeline_id === CRM_MAP.pipelineId && gateDoLead(lead).ok) return lead
+  await redis.del(K_CARD(tel))
+  return null
+}
+
 async function cardDaSofi(tel: string): Promise<KommoLead | null> {
+  const lembrado = await cardLembrado(tel)
+  if (lembrado) return lembrado
+  if (await redis.get(K_NAO(tel))) return null
   for (let i = 0; i < TENTATIVAS; i++) {
     const lead = await findOpenLeadByPhone(tel, [CRM_MAP.pipelineId])
     if (lead && gateDoLead(lead).ok) return lead
     if (i < TENTATIVAS - 1) await sleep(ESPERA_MS)
   }
+  await redis.set(K_NAO(tel), 1, { ex: 3600 })
   return null
 }
 
@@ -94,6 +118,7 @@ async function ingerir(m: Recebida, inst: string, daLista: boolean): Promise<voi
   }
   // Já está no funil de uma vendedora: é dela, a Sofi não entra.
   if (lead.pipeline_id !== CRM_MAP.pipelineId) return
+  await lembrarCard(m.tel, lead.id)
   // respondeu depois de um follow (ou do SEM RESPOSTA): o card volta para SOFI ATENDENDO
   const S = CRM_MAP.stages
   if (([S.follow1.id, S.follow2.id, S.follow3.id, S.semResposta.id] as number[]).includes(lead.status_id)) await patchLead(lead.id, { status_id: S.atendendo.id })
@@ -109,8 +134,9 @@ async function ingerir(m: Recebida, inst: string, daLista: boolean): Promise<voi
 /** A vendedora escreveu pelo celular para um cliente que a Sofi está atendendo: a Sofi sai. */
 async function equipeRespondeu(m: Recebida): Promise<void> {
   if (await seenMessage(`uazapi:${m.id}`)) return
-  const lead = await findOpenLeadByPhone(m.tel, [CRM_MAP.pipelineId])
-  if (!lead || !gateDoLead(lead).ok) return
+  // Só conversa que a Sofi já atendeu interessa; as demais mensagens da vendedora não consultam o Kommo.
+  const lead = await cardLembrado(m.tel)
+  if (!lead) return
   if (m.texto && await isEchoOfSent(lead.id, m.texto)) return // a própria Sofi (sem a marca da API)
   await appendMessage(lead.id, { id: `uazapi:${m.id}`, dir: 'out', text: `[equipe]: ${m.texto || '(mídia)'}`, ts: Date.now() })
   await addLeadTags(lead.id, [CONFIG.humanTag])
