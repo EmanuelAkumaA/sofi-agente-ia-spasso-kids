@@ -13,9 +13,24 @@ export function falhaDeConexao(e: unknown): boolean {
   const causa = (e as { cause?: { code?: string } })?.cause
   return e instanceof TypeError && /fetch failed/i.test(e.message) && CODIGOS_DE_CONEXAO.includes(String(causa?.code))
 }
+// Trava de chamadas ao Kommo (padrão Kuma desde 2026-11-28): no máximo 5 por segundo nesta conta.
+// O Kommo bloqueia acima de 7/s; em 27/11/2026 uma rajada fez o Kommo bloquear o token da Sofi.
+// Contador por segundo no Redis: vale para todas as funções da Vercel ao mesmo tempo. Redis fora = segue sem esperar.
+const LIMITE_KOMMO_POR_SEG = Number(process.env.KOMMO_LIMITE_POR_SEG || 5)
+export async function aguardarVezKommo(): Promise<void> {
+  for (let i = 0; i < 60; i++) {
+    const chave = `kommo:rl:${Math.floor(Date.now() / 1000)}`
+    const n = await redis.incr(chave).catch(() => 0)
+    if (n === 1) await redis.expire(chave, 5).catch(() => {})
+    if (n <= LIMITE_KOMMO_POR_SEG) return
+    await new Promise(r => setTimeout(r, 1000 - (Date.now() % 1000) + Math.floor(Math.random() * 80)))
+  }
+}
+
 async function fetchKommo(url: string, init: RequestInit = {}): Promise<Response> {
   const metodo = (init.method || 'GET').toUpperCase()
   for (let i = 0; ; i++) {
+    await aguardarVezKommo()
     try { return await fetch(url, init) } catch (e) {
       if (i < 2 && (metodo === 'GET' || metodo === 'PATCH') && falhaDeConexao(e)) { await new Promise(r => setTimeout(r, 500 * (i + 1))); continue }
       throw e
